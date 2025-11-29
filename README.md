@@ -148,26 +148,18 @@ curl -X POST http://localhost:5000/api/v1/quiz/solve \
 
 ## 🚀 Deployment
 
-### **Render (Recommended)**
-1. Connect GitHub repository
-2. Add environment variables:
-   - `STUDENT_EMAIL`
-   - `STUDENT_SECRET` 
-   - `AIPIPE_TOKEN`
-3. Deploy automatically
+**See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for detailed instructions**
 
-### **Railway/Heroku**
-```bash
-# Railway
-railway login && railway init && railway deploy
+### **Quick Deploy Options:**
 
-# Heroku
-heroku create your-app-name
-heroku config:set STUDENT_EMAIL=your@email.com
-heroku config:set STUDENT_SECRET=your-secret
-heroku config:set AIPIPE_TOKEN=your-token
-git push heroku main
-```
+| Platform | Difficulty | Command |
+|----------|------------|---------|
+| **🌐 Render** | ⭐ Easy | Connect GitHub + Set env vars |
+| **🚂 Railway** | ⭐⭐ Medium | `railway up` |
+| **⚡ Heroku** | ⭐⭐ Medium | `git push heroku main` |
+| **🐳 Docker** | ⭐⭐⭐ Hard | `docker build -t llm-quiz .` |
+
+**✅ Render is recommended - much simpler than Docker for most use cases**
 
 ## 🔧 Development
 
