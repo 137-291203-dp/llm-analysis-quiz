@@ -281,17 +281,43 @@ Replace "your-meaningful-answer-here" with an appropriate answer value."""
                 # Special handling for CSV data analysis
                 cutoff_match = None
                 import re
-                # Look for cutoff values in the quiz data or page content
-                if hasattr(self, 'current_page_content'):
-                    cutoff_match = re.search(r'Cutoff:\s*(\d+)', self.current_page_content, re.IGNORECASE)
-                if not cutoff_match and quiz_info.get('question'):
-                    cutoff_match = re.search(r'Cutoff:\s*(\d+)', str(quiz_info), re.IGNORECASE)
-                if not cutoff_match:
-                    cutoff_match = re.search(r'cutoff[:\s]*(\d+)', str(processed_data), re.IGNORECASE)
                 
-                # Also check for cutoff in the raw data
-                if not cutoff_match and hasattr(self, 'last_fetched_content'):
-                    cutoff_match = re.search(r'Cutoff:\s*(\d+)', self.last_fetched_content, re.IGNORECASE)
+                # Multiple sources to search for cutoff values
+                search_sources = []
+                
+                # Add page content if available
+                if hasattr(self, 'current_page_content') and self.current_page_content:
+                    search_sources.append(self.current_page_content)
+                
+                # Add HTML content if available  
+                if hasattr(self, 'last_fetched_content') and self.last_fetched_content:
+                    search_sources.append(self.last_fetched_content)
+                
+                # Add quiz info
+                if quiz_info.get('question'):
+                    search_sources.append(str(quiz_info))
+                
+                # Add processed data
+                search_sources.append(str(processed_data))
+                
+                # Try different cutoff patterns
+                cutoff_patterns = [
+                    r'Cutoff:\s*(\d+)',
+                    r'cutoff[:\s]+(\d+)', 
+                    r'cut[\s-]*off[:\s]*(\d+)',
+                    r'threshold[:\s]*(\d+)',
+                    r'limit[:\s]*(\d+)'
+                ]
+                
+                # Search all sources with all patterns
+                for source in search_sources:
+                    if cutoff_match:
+                        break
+                    for pattern in cutoff_patterns:
+                        cutoff_match = re.search(pattern, source, re.IGNORECASE)
+                        if cutoff_match:
+                            logger.info(f"🎯 Found cutoff value {cutoff_match.group(1)} using pattern '{pattern}'")
+                            break
                 
                 cutoff_instruction = ""
                 if cutoff_match:
@@ -309,21 +335,32 @@ Replace "your-meaningful-answer-here" with an appropriate answer value."""
                     if item:
                         actual_values.extend(list(item.values()))
                 
+                cutoff_info = ""
+                if cutoff_match:
+                    cutoff_value = int(cutoff_match.group(1))
+                    cutoff_info = f"CUTOFF VALUE: {cutoff_value} (detected from quiz page)"
+                    task_instruction = f"TASK: Calculate the SUM of all values that are GREATER THAN {cutoff_value}."
+                    step_instruction = f"2. Include ONLY values > {cutoff_value} in your sum"
+                else:
+                    cutoff_info = "No specific cutoff value detected. Analyze based on context."
+                    task_instruction = "TASK: Calculate the SUM of all numerical values in the CSV."
+                    step_instruction = "2. Include all numerical values in your sum"
+
                 prompt = f"""{context}
 
 🧠 CRITICAL CSV DATA ANALYSIS TASK:
 You have a CSV file with {processed_data.get('shape', ['N/A', 'N/A'])[0]} rows of numerical data.
 
-CUTOFF VALUE: 37543 (found in the quiz page)
+{cutoff_info}
 
 CSV Sample Values: {actual_values[:15]}...
 All values are integers in the CSV.
 
-TASK: Calculate the SUM of all values that are GREATER THAN 37543.
+{task_instruction}
 
 STEP-BY-STEP:
 1. Look at each numerical value in the CSV data
-2. Include ONLY values > 37543 in your sum  
+{step_instruction}
 3. Calculate the exact total sum of these filtered values
 4. Return ONLY the numerical result
 
