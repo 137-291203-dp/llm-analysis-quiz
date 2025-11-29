@@ -360,16 +360,16 @@ Replace "your-meaningful-answer-here" with an appropriate answer value."""
                 cutoff_value = None
                 if cutoff_match:
                     cutoff_value = int(cutoff_match.group(1))
-                    included_examples = [v for v in actual_values[:20] if v > cutoff_value][:5]
-                    excluded_examples = [v for v in actual_values[:20] if v <= cutoff_value][:5]
+                    included_examples = [v for v in actual_values[:20] if v > cutoff_value][:3]
+                    excluded_examples = [v for v in actual_values[:20] if v <= cutoff_value][:3]
                     
-                    # Calculate example sum for clarity
-                    example_sum = sum(included_examples)
+                    # Show examples but NO CALCULATION to avoid confusion
                     examples_text = f"""
-EXAMPLES from sample data:
-- Include these values (> {cutoff_value}): {included_examples} 
-- Exclude these values (<= {cutoff_value}): {excluded_examples}
-- Example sum of included values: {included_examples} = {example_sum}"""
+EXAMPLES from sample data (NOT the final answer):
+- Include values like: {included_examples} (because they are > {cutoff_value})
+- Exclude values like: {excluded_examples} (because they are <= {cutoff_value})
+
+IMPORTANT: These are just examples from the first few rows. You must process ALL {processed_data.get('shape', ['N/A', 'N/A'])[0]} rows!"""
                 
                 cutoff_info = ""
                 if cutoff_value is not None:
