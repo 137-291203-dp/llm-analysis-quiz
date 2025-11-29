@@ -329,15 +329,50 @@ Replace "your-meaningful-answer-here" with an appropriate answer value."""
 - OR sum values that are BELOW the cutoff (< {cutoff_value})
 - Choose based on which makes more sense for the question"""
                 
-                # Extract actual data values for better analysis
+                # Extract actual data values for better analysis  
                 actual_values = []
-                for item in processed_data.get('data', [])[:20]:
-                    if item:
-                        actual_values.extend(list(item.values()))
+                csv_columns = processed_data.get('columns', [])
                 
-                cutoff_info = ""
+                # Debug: log CSV structure
+                logger.info(f"📊 CSV Columns: {csv_columns}")
+                logger.info(f"📊 Sample CSV data items: {processed_data.get('data', [])[:3]}")
+                
+                # Extract just the numerical values, ignore column names
+                for item in processed_data.get('data', [])[:50]:  # Get more samples
+                    if item:
+                        values = list(item.values())
+                        # Filter out non-numeric values and column names
+                        numeric_values = []
+                        for val in values:
+                            try:
+                                if isinstance(val, (int, float)):
+                                    numeric_values.append(int(val))
+                                elif isinstance(val, str) and val.replace('.', '').replace('-', '').isdigit():
+                                    numeric_values.append(int(float(val)))
+                            except:
+                                continue
+                        actual_values.extend(numeric_values)
+                
+                logger.info(f"📊 Extracted {len(actual_values)} numerical values: {actual_values[:10]}...")
+                
+                # Show examples of which values should be included/excluded if cutoff exists
+                examples_text = ""
+                cutoff_value = None
                 if cutoff_match:
                     cutoff_value = int(cutoff_match.group(1))
+                    included_examples = [v for v in actual_values[:20] if v > cutoff_value][:5]
+                    excluded_examples = [v for v in actual_values[:20] if v <= cutoff_value][:5]
+                    
+                    # Calculate example sum for clarity
+                    example_sum = sum(included_examples)
+                    examples_text = f"""
+EXAMPLES from sample data:
+- Include these values (> {cutoff_value}): {included_examples} 
+- Exclude these values (<= {cutoff_value}): {excluded_examples}
+- Example sum of included values: {included_examples} = {example_sum}"""
+                
+                cutoff_info = ""
+                if cutoff_value is not None:
                     cutoff_info = f"CUTOFF VALUE: {cutoff_value} (detected from quiz page)"
                     task_instruction = f"TASK: Calculate the SUM of all values that are GREATER THAN {cutoff_value}."
                     step_instruction = f"2. Include ONLY values > {cutoff_value} in your sum"
@@ -345,6 +380,7 @@ Replace "your-meaningful-answer-here" with an appropriate answer value."""
                     cutoff_info = "No specific cutoff value detected. Analyze based on context."
                     task_instruction = "TASK: Calculate the SUM of all numerical values in the CSV."
                     step_instruction = "2. Include all numerical values in your sum"
+                    examples_text = ""
 
                 prompt = f"""{context}
 
@@ -353,16 +389,17 @@ You have a CSV file with {processed_data.get('shape', ['N/A', 'N/A'])[0]} rows o
 
 {cutoff_info}
 
-CSV Sample Values: {actual_values[:15]}...
-All values are integers in the CSV.
+CSV Data Values (sample of first 25): {actual_values[:25]}...
+Total sample values shown: {len(actual_values[:25])}
+{examples_text}
 
 {task_instruction}
 
-STEP-BY-STEP:
-1. Look at each numerical value in the CSV data
+MATHEMATICAL OPERATION:
+1. Go through ALL {processed_data.get('shape', ['N/A', 'N/A'])[0]} rows of data
 {step_instruction}
-3. Calculate the exact total sum of these filtered values
-4. Return ONLY the numerical result
+3. Add up all the qualifying values: sum = value1 + value2 + value3 + ...
+4. Return ONLY the final sum as an integer
 
 CRITICAL: Return ONLY the integer sum, nothing else!
 Example: If sum is 1234567, return: 1234567
