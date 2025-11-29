@@ -189,7 +189,7 @@ class DataProcessor:
             raise
     
     def scrape_webpage(self, url, base_url=None):
-        """Scrape webpage content with support for relative URLs"""
+        """Scrape webpage content with support for relative URLs and aggressive JS execution"""
         # Handle relative URLs
         if url.startswith('/') and base_url:
             from urllib.parse import urljoin
@@ -203,40 +203,142 @@ class DataProcessor:
         logger.info(f"Scraping webpage: {url}")
         
         try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
-                'Connection': 'keep-alive',
-            }
+            # Try Playwright for JavaScript-heavy pages first
+            from playwright.sync_api import sync_playwright
             
-            response = requests.get(url, headers=headers, timeout=30)
-            response.raise_for_status()
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page()
+                page.set_default_timeout(30000)
+                
+                response = page.goto(url, wait_until="networkidle")
+                
+                if response and response.status < 400:
+                    # AGGRESSIVE JavaScript execution for secret code extraction
+                    logger.info("🔄 Starting aggressive JavaScript execution for content extraction")
+                    
+                    # Multiple rounds of waiting and execution
+                    for attempt in range(3):
+                        page.wait_for_timeout(4000)  # Wait 4 seconds each round
+                        
+                        # Try multiple JavaScript triggers
+                        try:
+                            page.evaluate("window.dispatchEvent(new Event('DOMContentLoaded'))")
+                            page.evaluate("window.dispatchEvent(new Event('load'))")
+                            page.evaluate("window.dispatchEvent(new Event('readystatechange'))")
+                            
+                            # If this is a secret extraction page, try to execute module scripts
+                            if 'demo-scrape-data' in url:
+                                try:
+                                    # Try to manually load and execute the demo-scrape.js if possible
+                                    script_content = page.evaluate("""
+                                        (() => {
+                                            // Try to get any generated content
+                                            const scripts = document.querySelectorAll('script[src]');
+                                            for (const script of scripts) {
+                                                console.log('Found script:', script.src);
+                                            }
+                                            
+                                            // Try to find any dynamically generated text
+                                            const allText = document.body.innerText || document.body.textContent || '';
+                                            return allText;
+                                        })()
+                                    """)
+                                    logger.info(f"🔍 Script evaluation attempt {attempt + 1}: {script_content[:100]}...")
+                                except Exception as script_error:
+                                    logger.info(f"⚠️ Script evaluation {attempt + 1} failed: {script_error}")
+                            
+                        except Exception as trigger_error:
+                            logger.info(f"⚠️ JavaScript trigger {attempt + 1} failed: {trigger_error}")
+                        
+                        # Check if content has appeared
+                        current_text = page.evaluate("document.body.innerText || document.body.textContent || ''")
+                        if len(current_text.strip()) > 20:  # If we got substantial content
+                            logger.info(f"✅ Content appeared after attempt {attempt + 1}")
+                            break
+                    
+                    content = page.content()
+                    text_content = page.evaluate("document.body.innerText || document.body.textContent || ''")
+                    
+                    # Additional attempt to extract any hidden or generated content
+                    try:
+                        all_content = page.evaluate("""
+                            (() => {
+                                const allText = [];
+                                
+                                // Get all text content including hidden elements
+                                const walker = document.createTreeWalker(
+                                    document.body,
+                                    NodeFilter.SHOW_TEXT,
+                                    null,
+                                    false
+                                );
+                                
+                                let node;
+                                while (node = walker.nextNode()) {
+                                    if (node.nodeValue.trim()) {
+                                        allText.push(node.nodeValue.trim());
+                                    }
+                                }
+                                
+                                return allText.join(' ');
+                            })()
+                        """)
+                        
+                        if len(all_content) > len(text_content):
+                            logger.info("🔍 Found additional content via DOM traversal")
+                            text_content = all_content
+                            
+                    except Exception as extract_error:
+                        logger.info(f"⚠️ Additional content extraction failed: {extract_error}")
+                    
+                    browser.close()
+                    
+                    soup = BeautifulSoup(content, 'html.parser')
+                    tables = self._extract_tables(soup)
+                    
+                    logger.info(f"Scraped webpage with {len(tables)} tables, text length: {len(text_content)}")
+                    logger.info(f"🔍 Extracted text content: {text_content[:200]}...")
+                    
+                    return {
+                        'text': text_content.strip(),
+                        'html': content,
+                        'tables': tables,
+                        'method': 'playwright_aggressive'
+                    }
+                else:
+                    browser.close()
+                    raise Exception(f"Failed to load with Playwright: {response.status if response else 'No response'}")
+                    
+        except Exception as playwright_error:
+            logger.warning(f"Playwright scraping failed: {playwright_error}")
             
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Extract text
-            text = soup.get_text(separator='\n', strip=True)
-            
-            # Extract tables
-            tables = []
-            for table in soup.find_all('table'):
-                df = pd.read_html(str(table))[0]
-                tables.append(df)
-            
-            data = {
-                'text': text,
-                'tables': tables,
-                'html': str(soup)
-            }
-            
-            logger.info(f"Scraped webpage with {len(tables)} tables")
-            return data
-            
-        except Exception as e:
-            logger.error(f"Error scraping webpage: {e}")
-            raise
+            # Fallback to requests
+            try:
+                response = requests.get(url, timeout=30)
+                response.raise_for_status()
+                
+                soup = BeautifulSoup(response.content, 'html.parser')
+                text_content = soup.get_text(separator='\n', strip=True)
+                tables = self._extract_tables(soup)
+                
+                logger.info(f"Scraped webpage with {len(tables)} tables")
+                return {
+                    'text': text_content,
+                    'html': str(soup),
+                    'tables': tables,
+                    'method': 'requests_fallback'
+                }
+                
+            except Exception as requests_error:
+                logger.error(f"Both Playwright and requests failed: {requests_error}")
+                return {
+                    'text': f"Failed to scrape {url}",
+                    'html': '',
+                    'tables': [],
+                    'error': str(requests_error),
+                    'method': 'failed'
+                }
     
     def fetch_api(self, url, headers=None, params=None):
         """Fetch data from API"""

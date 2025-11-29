@@ -84,17 +84,31 @@ class QuizSolver:
                 
                 # Wait for JavaScript to execute and DOM to be ready
                 try:
-                    # Wait for any JavaScript to finish executing
-                    page.wait_for_timeout(3000)  # Give JS time to run
+                    # Wait longer for JavaScript to fully execute
+                    page.wait_for_timeout(5000)  # Give more time for JS to run
                     
                     # Try to wait for specific content if it's a quiz page
                     if 'demo-scrape-data' in url:
-                        # For scrape data pages, wait for content to load
-                        page.wait_for_function("document.body.innerText.trim().length > 10", timeout=5000)
-                        logger.info("🔄 Waited for dynamic content to load")
-                except:
+                        # For scrape data pages, wait for content to load and try multiple approaches
+                        try:
+                            # Wait for any content to appear in the body
+                            page.wait_for_function("document.body.innerText.trim().length > 10", timeout=8000)
+                            logger.info("🔄 Waited for dynamic content to load")
+                        except:
+                            # If that fails, try waiting for any visible text
+                            page.wait_for_timeout(3000)  # Additional wait
+                            logger.info("🔄 Additional wait for JS execution")
+                            
+                        # Try executing any remaining JavaScript manually
+                        try:
+                            page.evaluate("window.dispatchEvent(new Event('load'))")
+                            page.wait_for_timeout(2000)  # Wait after triggering load
+                        except:
+                            pass
+                            
+                except Exception as wait_error:
                     # If specific waits fail, continue with what we have
-                    logger.info("⚠️ Dynamic content wait timed out, proceeding...")
+                    logger.info(f"⚠️ Dynamic content wait failed: {wait_error}, proceeding...")
                 
                 # Get page content after JavaScript execution
                 content = page.content()
@@ -180,12 +194,17 @@ class QuizSolver:
 Quiz Page Content:
 {quiz_data['text']}
 
+HTML Content (for file references):
+{quiz_data['html'][:1000]}
+
 Extract and return a JSON object with:
 1. "question": The main question or task description
-2. "data_source": URL or file to download (if any)
+2. "data_source": URL or file to download (if any) - look for specific filenames like .csv, .pdf, .json, href links, etc. If you see "CSV file" look for actual .csv filenames in the HTML.
 3. "submit_url": The URL where the answer should be submitted
 4. "answer_format": Expected format of the answer (number, string, boolean, object, etc.)
 5. "instructions": Step-by-step instructions to solve the task
+
+IMPORTANT: For data_source, extract the actual filename or URL, not generic terms like "CSV file". Look in both text and HTML for specific file references.
 
 Return ONLY valid JSON, no other text."""
 
