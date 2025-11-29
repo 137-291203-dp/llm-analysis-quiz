@@ -25,40 +25,94 @@ class QuizSolver:
         return max(0, Config.MAX_QUIZ_TIME - elapsed)
     
     def fetch_quiz_page(self, url):
-        """Fetch and render quiz page using Playwright"""
-        logger.info(f"Fetching quiz page: {url}")
+        """Fetch and render quiz page using Playwright with fallback"""
+        logger.info(f"📄 Fetching quiz page: {url}")
         
+        # Try Playwright first
         try:
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                context = browser.new_context(
-                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                )
-                page = context.new_page()
+            return self._fetch_with_playwright(url)
+        except Exception as playwright_error:
+            logger.warning(f"⚠️ Playwright failed: {playwright_error}")
+            logger.info("🔄 Falling back to requests-based scraping")
+            
+            # Fallback to requests + BeautifulSoup
+            try:
+                return self._fetch_with_requests(url)
+            except Exception as fallback_error:
+                logger.error(f"❌ All fetching methods failed. Playwright: {playwright_error}, Requests: {fallback_error}")
                 
-                # Navigate to the page
-                page.goto(url, wait_until='networkidle', timeout=30000)
-                
-                # Wait for content to render
-                page.wait_for_timeout(2000)
-                
-                # Get the rendered HTML
-                content = page.content()
-                
-                # Get text content from body
-                text_content = page.evaluate('() => document.body.innerText')
-                
-                browser.close()
-                
-                logger.info(f"Successfully fetched quiz page")
+                # Final fallback - return minimal structure
                 return {
-                    'html': content,
-                    'text': text_content,
-                    'url': url
+                    'url': url,
+                    'text': f"Unable to fetch content from {url}. Using basic processing.",
+                    'title': 'Quiz Page',
+                    'html': f'<html><body>Quiz URL: {url}</body></html>',
+                    'fallback': True,
+                    'error': str(playwright_error)
                 }
-        except Exception as e:
-            logger.error(f"Error fetching quiz page: {e}")
-            raise
+    
+    def _fetch_with_playwright(self, url):
+        """Primary method: Fetch using Playwright"""
+        logger.info("🎭 Using Playwright to fetch page")
+        
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            )
+            page = context.new_page()
+            
+            # Navigate to page
+            response = page.goto(url, wait_until='networkidle')
+            
+            if response.status != 200:
+                raise Exception(f"HTTP {response.status}")
+            
+            # Wait for content to load
+            page.wait_for_timeout(2000)
+            
+            # Extract page content
+            data = {
+                'url': url,
+                'text': page.content(),
+                'title': page.title(),
+                'html': page.content(),
+                'method': 'playwright'
+            }
+            
+            browser.close()
+            logger.info("✅ Successfully fetched with Playwright")
+            return data
+    
+    def _fetch_with_requests(self, url):
+        """Fallback method: Fetch using requests + BeautifulSoup"""
+        logger.info("🌐 Using requests fallback to fetch page")
+        
+        import requests
+        from bs4 import BeautifulSoup
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Extract text content
+        text_content = soup.get_text(separator='\n', strip=True)
+        
+        data = {
+            'url': url,
+            'text': text_content,
+            'title': soup.title.string if soup.title else 'Quiz Page',
+            'html': str(soup),
+            'method': 'requests_fallback'
+        }
+        
+        logger.info("✅ Successfully fetched with requests fallback")
+        return data
     
     def parse_quiz_with_llm(self, quiz_data):
         """Use LLM to parse quiz instructions and extract task details"""
