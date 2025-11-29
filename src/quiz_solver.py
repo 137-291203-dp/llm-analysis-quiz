@@ -435,10 +435,14 @@ IMPORTANT: These are just examples from the first few rows. You must process ALL
                     logger.info(f"🧮 Out range: {len(out_range)} values, sum = {sum(out_range)}")
                     logger.info(f"🧮 Total sum: {total_sum}")
                     
-                    # INTELLIGENT APPROACH: Interpret quiz question to determine correct logic
+                    # INTELLIGENT APPROACH: Analyze ALL available content for clues
                     question_text = quiz_info.get('question', '').lower()
                     instructions_text = ' '.join(quiz_info.get('instructions', [])).lower()
-                    combined_text = question_text + ' ' + instructions_text
+                    page_content = self.page_content.lower() if hasattr(self, 'page_content') else ''
+                    combined_text = question_text + ' ' + instructions_text + ' ' + page_content
+                    
+                    # Log what we're analyzing
+                    logger.info(f"🔍 ANALYZING CONTENT: '{combined_text[:200]}...'")
                     
                     # Analyze question for keywords to determine the correct approach
                     if 'above' in combined_text or 'greater' in combined_text or 'over' in combined_text or '>' in combined_text:
@@ -457,9 +461,10 @@ IMPORTANT: These are just examples from the first few rows. You must process ALL
                         calculated_sum = sum(out_range)
                         logic = "values OUTSIDE range of cutoff (keyword detected)"
                     else:
-                        # No keywords found - default to above cutoff (most common)
-                        calculated_sum = sum(above)
-                        logic = "values ABOVE cutoff (default - no keywords found)"
+                        # No keywords found - try TOTAL SUM (most comprehensive)
+                        # Audio analysis often wants ALL data processed
+                        calculated_sum = total_sum
+                        logic = "TOTAL SUM of all values (no specific keywords found - audio analysis default)"
                     
                     # Log all options for debugging
                     logger.info(f"📝 QUESTION TEXT: {question_text}")
