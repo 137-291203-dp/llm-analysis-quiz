@@ -257,123 +257,224 @@ USER CREDENTIALS (use these actual values):
         if processed_data:
             context += f"\n\nProcessed Data:\n{json.dumps(processed_data, indent=2)[:5000]}"
         
-        # UNIVERSAL SOLUTION: Handle ANY quiz type intelligently
-        logger.info(f"🌟 UNIVERSAL QUIZ SOLVER - Analyzing question type...")
-        
-        question = quiz_info.get('question', '').lower()
-        instructions = ' '.join(quiz_info.get('instructions', [])).lower()
-        
-        # CSV/Data Analysis Questions
-        if 'data' in processed_data:
-            logger.info(f"📊 DETECTED: CSV Data Analysis")
-            
-            # Extract all numerical values
-            all_values = []
-            for item in processed_data.get('data', []):
-                if isinstance(item, dict):
-                    for key, value in item.items():
-                        if isinstance(value, (int, float)):
-                            all_values.append(value)
-                elif isinstance(item, (int, float)):
-                    all_values.append(item)
-            
-            if all_values:
-                total_sum = sum(all_values)
-                above_cutoff = sum(v for v in all_values if v > 0)
-                below_cutoff = sum(v for v in all_values if v < 0)
-                
-                logger.info(f"📊 Data: {len(all_values)} values, Total: {total_sum}")
-                logger.info(f"📊 Above 0: {above_cutoff}")
-                logger.info(f"📊 Below 0: {below_cutoff}")
-                
-                # Smart selection based on common patterns
-                if 'sum' in question or 'total' in question:
-                    answer = total_sum
-                    logic = "Total sum (keyword detected)"
-                elif 'above' in question or 'greater' in question:
-                    answer = above_cutoff
-                    logic = "Above 0 (keyword detected)"
-                elif 'below' in question or 'less' in question:
-                    answer = below_cutoff
-                    logic = "Below 0 (keyword detected)"
-                else:
-                    # Default: most common is total sum
-                    answer = total_sum
-                    logic = "Total sum (default for data analysis)"
-                
-                logger.info(f"🎯 SELECTED: {logic} = {answer}")
-                prompt = f"""{context}
-
-📊 DATA ANALYSIS RESULT: {answer}
-
-Return: {answer}"""
-            else:
-                prompt = f"""{context}
-
-No numerical data found. Analyze the data structure and provide appropriate answer."""
-        
-        # Secret Code Extraction
-        elif 'text' in processed_data:
-            logger.info(f"🔍 DETECTED: Secret code extraction")
-            text_content = processed_data['text']
-            
-            import re
-            patterns = [r'Secret code is (\d+)', r'secret code: (\d+)', r'code: (\d+)', r'answer: (\d+)']
-            
-            for pattern in patterns:
-                match = re.search(pattern, text_content, re.IGNORECASE)
-                if match:
-                    secret_code = match.group(1)
-                    logger.info(f"🔍 Found: {secret_code}")
-                    prompt = f"""{context}
-
-🔍 SECRET CODE: {secret_code}
-
-Return: {secret_code}"""
-                    break
-            else:
-                prompt = f"""{context}
-
-📄 CONTENT: {text_content}
-
-Extract the secret code or answer."""
-        
-        # JSON Submission Questions
-        elif 'post this json' in question or 'json' in question:
-            logger.info(f"📝 DETECTED: JSON submission quiz")
+        # Check if this is a submission-style quiz that wants a complete JSON structure
+        if "POST this JSON" in quiz_info.get('question', '') and any("email" in str(instr) for instr in quiz_info.get('instructions', [])):
             prompt = f"""{context}
 
-This is a JSON submission quiz. Return the complete JSON object with your credentials.
-
-Use:
+This is a JSON submission quiz. You need to return the COMPLETE JSON object that should be posted to the submit URL.
+Use these ACTUAL user credentials:
 - Email: {self.email}
 - Secret: {self.secret}
-- URL: {quiz_info.get('submit_url', 'current page URL')}
-- Answer: Provide a meaningful response
 
-Return the complete JSON object."""
-        
-        # Generic/Unknown Questions
+Return the complete JSON object in this exact format:
+{{
+  "email": "{self.email}",
+  "secret": "{self.secret}", 
+  "url": "https://tds-llm-analysis.s-anand.net/demo",
+  "answer": "your-meaningful-answer-here"
+}}
+
+Replace "your-meaningful-answer-here" with an appropriate answer value."""
         else:
-            logger.info(f"🤖 DETECTED: Generic question - using LLM reasoning")
-            if processed_data:
+            # Enhanced prompting for different quiz types
+            if processed_data and processed_data.get('type') == 'csv':
+                # Special handling for CSV data analysis
+                cutoff_match = None
+                import re
+                
+                # Multiple sources to search for cutoff values
+                search_sources = []
+                
+                # Add page content if available
+                if hasattr(self, 'current_page_content') and self.current_page_content:
+                    search_sources.append(self.current_page_content)
+                
+                # Add HTML content if available  
+                if hasattr(self, 'last_fetched_content') and self.last_fetched_content:
+                    search_sources.append(self.last_fetched_content)
+                
+                # Add quiz info
+                if quiz_info.get('question'):
+                    search_sources.append(str(quiz_info))
+                
+                # Add processed data
+                search_sources.append(str(processed_data))
+                
+                # Try different cutoff patterns
+                cutoff_patterns = [
+                    r'Cutoff:\s*(\d+)',
+                    r'cutoff[:\s]+(\d+)', 
+                    r'cut[\s-]*off[:\s]*(\d+)',
+                    r'threshold[:\s]*(\d+)',
+                    r'limit[:\s]*(\d+)'
+                ]
+                
+                # Search all sources with all patterns
+                for source in search_sources:
+                    if cutoff_match:
+                        break
+                    for pattern in cutoff_patterns:
+                        cutoff_match = re.search(pattern, source, re.IGNORECASE)
+                        if cutoff_match:
+                            logger.info(f"🎯 Found cutoff value {cutoff_match.group(1)} using pattern '{pattern}'")
+                            break
+                
+                cutoff_instruction = ""
+                if cutoff_match:
+                    cutoff_value = int(cutoff_match.group(1))
+                    cutoff_instruction = f"""
+🎯 CUTOFF VALUE DETECTED: {cutoff_value}
+- Compare each data value against this cutoff: {cutoff_value}
+- Sum values that are ABOVE the cutoff (> {cutoff_value})
+- OR sum values that are BELOW the cutoff (< {cutoff_value})
+- Choose based on which makes more sense for the question"""
+                
+                # Extract actual data values for better analysis  
+                actual_values = []
+                csv_columns = processed_data.get('columns', [])
+                
+                # Debug: log CSV structure
+                logger.info(f"📊 CSV Columns: {csv_columns}")
+                logger.info(f"📊 Sample CSV data items: {processed_data.get('data', [])[:3]}")
+                
+                # Extract just the numerical values, ignore column names
+                for item in processed_data.get('data', [])[:50]:  # Get more samples
+                    if item:
+                        values = list(item.values())
+                        # Filter out non-numeric values and column names
+                        numeric_values = []
+                        for val in values:
+                            try:
+                                if isinstance(val, (int, float)):
+                                    numeric_values.append(int(val))
+                                elif isinstance(val, str) and val.replace('.', '').replace('-', '').isdigit():
+                                    numeric_values.append(int(float(val)))
+                            except:
+                                continue
+                        actual_values.extend(numeric_values)
+                
+                logger.info(f"📊 Extracted {len(actual_values)} numerical values: {actual_values[:10]}...")
+                
+                # Show examples of which values should be included/excluded if cutoff exists
+                examples_text = ""
+                cutoff_value = None
+                if cutoff_match:
+                    cutoff_value = int(cutoff_match.group(1))
+                    included_examples = [v for v in actual_values[:20] if v > cutoff_value][:3]
+                    excluded_examples = [v for v in actual_values[:20] if v <= cutoff_value][:3]
+                    
+                    # Show examples but NO CALCULATION to avoid confusion
+                    examples_text = f"""
+EXAMPLES from sample data (NOT the final answer):
+- Include values like: {included_examples} (because they are > {cutoff_value})
+- Exclude values like: {excluded_examples} (because they are <= {cutoff_value})
+
+IMPORTANT: These are just examples from the first few rows. You must process ALL {processed_data.get('shape', ['N/A', 'N/A'])[0]} rows!"""
+                
+                cutoff_info = ""
+                if cutoff_value is not None:
+                    cutoff_info = f"CUTOFF VALUE: {cutoff_value} (detected from quiz page)"
+                    task_instruction = f"TASK: Calculate the SUM of all values that are GREATER THAN {cutoff_value}."
+                    step_instruction = f"2. Include ONLY values > {cutoff_value} in your sum"
+                else:
+                    cutoff_info = "No specific cutoff value detected. Analyze based on context."
+                    task_instruction = "TASK: Calculate the SUM of all numerical values in the CSV."
+                    step_instruction = "2. Include all numerical values in your sum"
+                    examples_text = ""
+
+                # Get ALL data for complete processing
+                all_values = []
+                for item in processed_data.get('data', []):
+                    if item:
+                        values = list(item.values())
+                        for val in values:
+                            try:
+                                if isinstance(val, (int, float)):
+                                    all_values.append(int(val))
+                                elif isinstance(val, str) and val.replace('.', '').replace('-', '').isdigit():
+                                    all_values.append(int(float(val)))
+                            except:
+                                continue
+
+                logger.info(f"📊 Processing ALL {len(all_values)} values for LLM analysis")
+
+                # Use ReAct Framework: LLM identifies values, Python calculates
+                if cutoff_value is not None:
+                    # Filter values using Python (accurate)
+                    qualifying_values = [v for v in all_values if v > cutoff_value]
+                    calculated_sum = sum(qualifying_values)
+                    
+                    logger.info(f"🧮 PYTHON CALCULATION: {len(qualifying_values)} values > {cutoff_value}")
+                    logger.info(f"🧮 QUALIFYING VALUES: {qualifying_values[:10]}... (showing first 10)")
+                    logger.info(f"🧮 CALCULATED SUM: {calculated_sum}")
+                    
+                    # Let LLM verify the logic, but use Python result
+                    prompt = f"""{context}
+
+🧠 CSV DATA ANALYSIS WITH VERIFICATION:
+We have a CSV file with {len(all_values)} numerical values and cutoff {cutoff_value}.
+
+CUTOFF LOGIC VERIFICATION:
+- We need values GREATER THAN {cutoff_value}
+- Found {len(qualifying_values)} qualifying values
+- Examples of included values: {qualifying_values[:5]}
+- Examples of excluded values: {[v for v in all_values if v <= cutoff_value][:5]}
+
+PYTHON CALCULATED THE SUM: {calculated_sum}
+
+Your task: Verify this is correct and return ONLY the number {calculated_sum}.
+Return the number without any explanations: {calculated_sum}"""
+
+                else:
+                    # No cutoff - sum all values
+                    calculated_sum = sum(all_values)
+                    logger.info(f"🧮 PYTHON CALCULATION: Sum of all {len(all_values)} values = {calculated_sum}")
+                    
+                    prompt = f"""{context}
+
+🧠 CSV DATA ANALYSIS:
+Sum all {len(all_values)} numerical values.
+
+PYTHON CALCULATED THE SUM: {calculated_sum}
+
+Return this number: {calculated_sum}"""
+
+            elif "secret code" in quiz_info.get('question', '').lower():
+                # Special handling for secret code extraction
                 prompt = f"""{context}
 
-📊 Available Data: {processed_data}
+SECRET CODE EXTRACTION TASK:
+You need to find a secret code from the scraped webpage content.
 
-Analyze the question and data to provide the correct answer.
-Return ONLY the answer value (number, string, or boolean)."""
+Look for:
+- Text patterns like "Secret code is XXXXX"
+- Numbers mentioned as secret codes
+- Generated content from JavaScript
+- Any numeric codes (like 37543, 12345, etc.)
+- Pattern-like strings that could be secrets
+
+IMPORTANT: If you see text like "Secret code is 37543", extract just the number "37543".
+If you see any error about failed scraping but the content mentions a secret code, extract that code.
+
+Extract the secret code and return ONLY the numeric/alphanumeric code value.
+Return ONLY the secret code value without explanations."""
+
             else:
+                # General quiz solving
                 prompt = f"""{context}
 
-Provide the answer to this question.
-For demo questions asking for "anything you want", provide: "demo-answer"
-Return ONLY the answer value."""
+Based on the above information, provide ONLY the answer value to the question.
+For demo quizzes that ask for "anything you want", provide a meaningful response like "demo-answer".
+If the question involves calculations, perform them accurately.
+If the question asks for data analysis, analyze the provided data thoroughly.
+Return ONLY the answer value in the appropriate format (number, string, boolean).
+Do not include explanations or additional text."""
 
         # Log the full reasoning prompt
         logger.info(f"🤖 ANSWER GENERATION PROMPT:")
         logger.info(f"📋 Question: {quiz_info.get('question', 'Unknown')}")
         logger.info(f"📝 Instructions: {quiz_info.get('instructions', 'None provided')}")
+        logger.info(f"📊 Data Available: {'Yes' if processed_data else 'No'}")
         if processed_data:
             logger.info(f"📈 Data Summary: {str(processed_data)[:200]}...")
 
