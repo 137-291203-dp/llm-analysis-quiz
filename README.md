@@ -145,30 +145,6 @@ curl -X POST http://localhost:5000/api/v1/quiz/solve \
   -H "Content-Type: application/json" \
   -d '{"email": "your@email.com", "secret": "your-secret", "url": "https://tds-llm-analysis.s-anand.net/demo"}'
 ```
-
-## 🚀 Deployment
-
-### **Render (Recommended)**
-1. Connect GitHub repository
-2. Add environment variables:
-   - `STUDENT_EMAIL`
-   - `STUDENT_SECRET` 
-   - `AIPIPE_TOKEN`
-3. Deploy automatically
-
-### **Railway/Heroku**
-```bash
-# Railway
-railway login && railway init && railway deploy
-
-# Heroku
-heroku create your-app-name
-heroku config:set STUDENT_EMAIL=your@email.com
-heroku config:set STUDENT_SECRET=your-secret
-heroku config:set AIPIPE_TOKEN=your-token
-git push heroku main
-```
-
 ## 🔧 Development
 
 ### **File Structure**
