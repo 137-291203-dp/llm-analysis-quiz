@@ -382,6 +382,22 @@ IMPORTANT: These are just examples from the first few rows. You must process ALL
                     step_instruction = "2. Include all numerical values in your sum"
                     examples_text = ""
 
+                # Get ALL data for complete processing
+                all_values = []
+                for item in processed_data.get('data', []):
+                    if item:
+                        values = list(item.values())
+                        for val in values:
+                            try:
+                                if isinstance(val, (int, float)):
+                                    all_values.append(int(val))
+                                elif isinstance(val, str) and val.replace('.', '').replace('-', '').isdigit():
+                                    all_values.append(int(float(val)))
+                            except:
+                                continue
+
+                logger.info(f"📊 Processing ALL {len(all_values)} values for LLM analysis")
+
                 prompt = f"""{context}
 
 🧠 CRITICAL CSV DATA ANALYSIS TASK:
@@ -389,16 +405,16 @@ You have a CSV file with {processed_data.get('shape', ['N/A', 'N/A'])[0]} rows o
 
 {cutoff_info}
 
-CSV Data Values (sample of first 25): {actual_values[:25]}...
-Total sample values shown: {len(actual_values[:25])}
+ALL CSV DATA VALUES: {all_values}
+Total values to process: {len(all_values)}
 {examples_text}
 
 {task_instruction}
 
-MATHEMATICAL OPERATION:
-1. Go through ALL {processed_data.get('shape', ['N/A', 'N/A'])[0]} rows of data
+MATHEMATICAL OPERATION - PROCESS ALL VALUES ABOVE:
+1. Look at the complete list of {len(all_values)} values above
 {step_instruction}
-3. Add up all the qualifying values: sum = value1 + value2 + value3 + ...
+3. Add up all the qualifying values from the complete dataset
 4. Return ONLY the final sum as an integer
 
 CRITICAL: Return ONLY the integer sum, nothing else!
