@@ -398,30 +398,46 @@ IMPORTANT: These are just examples from the first few rows. You must process ALL
 
                 logger.info(f"📊 Processing ALL {len(all_values)} values for LLM analysis")
 
-                prompt = f"""{context}
+                # Use ReAct Framework: LLM identifies values, Python calculates
+                if cutoff_value is not None:
+                    # Filter values using Python (accurate)
+                    qualifying_values = [v for v in all_values if v > cutoff_value]
+                    calculated_sum = sum(qualifying_values)
+                    
+                    logger.info(f"🧮 PYTHON CALCULATION: {len(qualifying_values)} values > {cutoff_value}")
+                    logger.info(f"🧮 QUALIFYING VALUES: {qualifying_values[:10]}... (showing first 10)")
+                    logger.info(f"🧮 CALCULATED SUM: {calculated_sum}")
+                    
+                    # Let LLM verify the logic, but use Python result
+                    prompt = f"""{context}
 
-🧠 CRITICAL CSV DATA ANALYSIS TASK:
-You have a CSV file with {processed_data.get('shape', ['N/A', 'N/A'])[0]} rows of numerical data.
+🧠 CSV DATA ANALYSIS WITH VERIFICATION:
+We have a CSV file with {len(all_values)} numerical values and cutoff {cutoff_value}.
 
-{cutoff_info}
+CUTOFF LOGIC VERIFICATION:
+- We need values GREATER THAN {cutoff_value}
+- Found {len(qualifying_values)} qualifying values
+- Examples of included values: {qualifying_values[:5]}
+- Examples of excluded values: {[v for v in all_values if v <= cutoff_value][:5]}
 
-ALL CSV DATA VALUES: {all_values}
-Total values to process: {len(all_values)}
-{examples_text}
+PYTHON CALCULATED THE SUM: {calculated_sum}
 
-{task_instruction}
+Your task: Verify this is correct and return ONLY the number {calculated_sum}.
+Return the number without any explanations: {calculated_sum}"""
 
-MATHEMATICAL OPERATION - PROCESS ALL VALUES ABOVE:
-1. Look at the complete list of {len(all_values)} values above
-{step_instruction}
-3. Add up all the qualifying values from the complete dataset
-4. Return ONLY the final sum as an integer
+                else:
+                    # No cutoff - sum all values
+                    calculated_sum = sum(all_values)
+                    logger.info(f"🧮 PYTHON CALCULATION: Sum of all {len(all_values)} values = {calculated_sum}")
+                    
+                    prompt = f"""{context}
 
-CRITICAL: Return ONLY the integer sum, nothing else!
-Example: If sum is 1234567, return: 1234567
+🧠 CSV DATA ANALYSIS:
+Sum all {len(all_values)} numerical values.
 
-Do NOT include any explanatory text like "The sum is..." or "Total:".
-Return the raw number only."""
+PYTHON CALCULATED THE SUM: {calculated_sum}
+
+Return this number: {calculated_sum}"""
 
             elif "secret code" in quiz_info.get('question', '').lower():
                 # Special handling for secret code extraction
