@@ -217,6 +217,10 @@ Return ONLY valid JSON, no other text."""
 Instructions: {quiz_info.get('instructions', 'None provided')}
 
 Answer Format: {quiz_info.get('answer_format', 'Unknown')}
+
+USER CREDENTIALS (use these actual values):
+- Email: {self.email}
+- Secret: {self.secret}
 """
         
         if processed_data:
@@ -225,6 +229,8 @@ Answer Format: {quiz_info.get('answer_format', 'Unknown')}
         prompt = f"""{context}
 
 Based on the above information, provide the answer to the question.
+If the answer requires a JSON with "email" and "secret" fields, use the ACTUAL user credentials provided above.
+Do NOT use placeholder text like "your email" or "your secret" - use the real values.
 Return ONLY the answer value in the appropriate format (number, string, boolean, or JSON object).
 Do not include explanations or additional text."""
 
