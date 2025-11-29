@@ -435,39 +435,52 @@ IMPORTANT: These are just examples from the first few rows. You must process ALL
                     logger.info(f"🧮 Out range: {len(out_range)} values, sum = {sum(out_range)}")
                     logger.info(f"🧮 Total sum: {total_sum}")
                     
-                    # SUBMISSION-READY: Store all candidates and metadata for automatic retry
-                    self.csv_candidates = [
-                        ("Out of range", sum(out_range), len(out_range)),
-                        ("Close to average", sum(close_to_avg), len(close_to_avg)), 
-                        ("Above cutoff", sum(above), len(above)),
-                        ("Total sum", total_sum, len(all_values)),
-                        ("Below cutoff", sum(below), len(below)),
-                        ("In range", sum(in_range), len(in_range))
-                    ]
+                    # INTELLIGENT APPROACH: Interpret quiz question to determine correct logic
+                    question_text = quiz_info.get('question', '').lower()
+                    instructions_text = ' '.join(quiz_info.get('instructions', [])).lower()
+                    combined_text = question_text + ' ' + instructions_text
                     
-                    # Log all candidates for debugging
-                    logger.info(f"🎯 ALL SUBMISSION CANDIDATES:")
-                    for i, (name, total, count) in enumerate(self.csv_candidates):
-                        logger.info(f"🎯 Option {i+1}: {name} = {total} ({count} values)")
+                    # Analyze question for keywords to determine the correct approach
+                    if 'above' in combined_text or 'greater' in combined_text or 'over' in combined_text or '>' in combined_text:
+                        calculated_sum = sum(above)
+                        logic = "values ABOVE cutoff (keyword detected)"
+                    elif 'below' in combined_text or 'less' in combined_text or 'under' in combined_text or '<' in combined_text:
+                        calculated_sum = sum(below)
+                        logic = "values BELOW cutoff (keyword detected)"
+                    elif 'equal' in combined_text or 'exactly' in combined_text or '=' in combined_text:
+                        calculated_sum = sum(equal)
+                        logic = "values EQUAL to cutoff (keyword detected)"
+                    elif 'range' in combined_text or 'between' in combined_text or 'within' in combined_text:
+                        calculated_sum = sum(in_range)
+                        logic = "values IN RANGE of cutoff (keyword detected)"
+                    elif 'outside' in combined_text or 'beyond' in combined_text or 'far' in combined_text:
+                        calculated_sum = sum(out_range)
+                        logic = "values OUTSIDE range of cutoff (keyword detected)"
+                    else:
+                        # No keywords found - default to above cutoff (most common)
+                        calculated_sum = sum(above)
+                        logic = "values ABOVE cutoff (default - no keywords found)"
                     
-                    # Try the most promising: Out of range (biggest group)
-                    calculated_sum = sum(out_range)
-                    logger.info(f"🎯 TRYING FIRST: Values out of range = {calculated_sum}")
+                    # Log all options for debugging
+                    logger.info(f"📝 QUESTION TEXT: {question_text}")
+                    logger.info(f"🧮 ALL OPTIONS:")
+                    logger.info(f"🧮 Above cutoff: {sum(above)} ({len(above)} values)")
+                    logger.info(f"🧮 Below cutoff: {sum(below)} ({len(below)} values)")
+                    logger.info(f"🧮 Equal cutoff: {sum(equal)} ({len(equal)} values)")
+                    logger.info(f"🧮 In range: {sum(in_range)} ({len(in_range)} values)")
+                    logger.info(f"🧮 Out range: {sum(out_range)} ({len(out_range)} values)")
+                    logger.info(f"🧮 Total sum: {total_sum}")
+                    logger.info(f"🎯 SELECTED: {logic} = {calculated_sum}")
                     
                     prompt = f"""{context}
 
-🧠 CSV DATA ANALYSIS - SUBMISSION READY:
-Cutoff: {cutoff_value}, Dataset: {len(all_values)} values
+🧠 CSV DATA ANALYSIS:
+Dataset: {len(all_values)} values, Cutoff: {cutoff_value}
 
-CANDIDATES RANKED BY LIKELIHOOD:
-1. Out of range (±5000): {sum(out_range)} ({len(out_range)} values) ⭐ TRYING THIS
-2. Close to average: {sum(close_to_avg)} ({len(close_to_avg)} values)
-3. Above cutoff: {sum(above)} ({len(above)} values)
-4. Total sum: {total_sum} ({len(all_values)} values)
-5. Below cutoff: {sum(below)} ({len(below)} values)
-6. In range: {sum(in_range)} ({len(in_range)} values)
+QUESTION: "{quiz_info.get('question', '')}"
 
-CURRENT ATTEMPT: {calculated_sum}
+ANALYSIS: {logic}
+CALCULATED ANSWER: {calculated_sum}
 
 Return: {calculated_sum}"""
 
