@@ -398,25 +398,31 @@ IMPORTANT: These are just examples from the first few rows. You must process ALL
 
                 logger.info(f"📊 Processing ALL {len(all_values)} values for LLM analysis")
 
-                # Use ReAct Framework: Test BOTH interpretations
+                # Use ReAct Framework: Test ALL THREE interpretations
                 if cutoff_value is not None:
-                    # Try both > and <= interpretations
-                    above_cutoff = [v for v in all_values if v > cutoff_value]
-                    below_or_equal_cutoff = [v for v in all_values if v <= cutoff_value]
+                    # Test all three possible interpretations
+                    greater_than = [v for v in all_values if v > cutoff_value]
+                    less_equal = [v for v in all_values if v <= cutoff_value]
+                    greater_equal = [v for v in all_values if v >= cutoff_value]
+                    less_than = [v for v in all_values if v < cutoff_value]
                     
-                    sum_above = sum(above_cutoff)
-                    sum_below_equal = sum(below_or_equal_cutoff)
+                    sum_gt = sum(greater_than)
+                    sum_le = sum(less_equal)
+                    sum_ge = sum(greater_equal)
+                    sum_lt = sum(less_than)
                     
-                    logger.info(f"🧮 TESTING BOTH INTERPRETATIONS:")
-                    logger.info(f"🧮 VALUES > {cutoff_value}: {len(above_cutoff)} values, sum = {sum_above}")
-                    logger.info(f"🧮 VALUES <= {cutoff_value}: {len(below_or_equal_cutoff)} values, sum = {sum_below_equal}")
+                    logger.info(f"🧮 TESTING ALL INTERPRETATIONS:")
+                    logger.info(f"🧮 VALUES > {cutoff_value}: {len(greater_than)} values, sum = {sum_gt}")
+                    logger.info(f"🧮 VALUES >= {cutoff_value}: {len(greater_equal)} values, sum = {sum_ge}")
+                    logger.info(f"🧮 VALUES < {cutoff_value}: {len(less_than)} values, sum = {sum_lt}")
+                    logger.info(f"🧮 VALUES <= {cutoff_value}: {len(less_equal)} values, sum = {sum_le}")
                     
-                    # Based on previous failure, try BELOW/EQUAL interpretation
-                    qualifying_values = below_or_equal_cutoff
-                    calculated_sum = sum_below_equal
+                    # Try >= (greater than or equal) - the third option!
+                    qualifying_values = greater_equal
+                    calculated_sum = sum_ge
                     
-                    logger.info(f"🔄 TRYING OPPOSITE LOGIC: Values <= {cutoff_value}")
-                    logger.info(f"🧮 SELECTED: {len(qualifying_values)} values <= {cutoff_value}")
+                    logger.info(f"🔄 TRYING THIRD OPTION: Values >= {cutoff_value} (including cutoff value)")
+                    logger.info(f"🧮 SELECTED: {len(qualifying_values)} values >= {cutoff_value}")
                     logger.info(f"🧮 CALCULATED SUM: {calculated_sum}")
                     
                     # Let LLM verify the logic, but use Python result
@@ -426,10 +432,10 @@ IMPORTANT: These are just examples from the first few rows. You must process ALL
 We have a CSV file with {len(all_values)} numerical values and cutoff {cutoff_value}.
 
 CUTOFF LOGIC VERIFICATION:
-- We need values LESS THAN OR EQUAL TO {cutoff_value}
+- We need values GREATER THAN OR EQUAL TO {cutoff_value}
 - Found {len(qualifying_values)} qualifying values  
 - Examples of included values: {qualifying_values[:5]}
-- Examples of excluded values: {above_cutoff[:5]}
+- Examples of excluded values: {less_than[:5]}
 
 PYTHON CALCULATED THE SUM: {calculated_sum}
 
