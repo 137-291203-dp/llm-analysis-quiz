@@ -398,67 +398,63 @@ IMPORTANT: These are just examples from the first few rows. You must process ALL
 
                 logger.info(f"📊 Processing ALL {len(all_values)} values for LLM analysis")
 
-                # Use ReAct Framework: Test ALL THREE interpretations
+                # LLM CODE GENERATION + EXECUTION: Let LLM write code, then execute it!
                 if cutoff_value is not None:
-                    # Test all three possible interpretations
-                    greater_than = [v for v in all_values if v > cutoff_value]
-                    less_equal = [v for v in all_values if v <= cutoff_value]
-                    greater_equal = [v for v in all_values if v >= cutoff_value]
-                    less_than = [v for v in all_values if v < cutoff_value]
-                    
-                    sum_gt = sum(greater_than)
-                    sum_le = sum(less_equal)
-                    sum_ge = sum(greater_equal)
-                    sum_lt = sum(less_than)
-                    
-                    logger.info(f"🧮 TESTING ALL INTERPRETATIONS:")
-                    logger.info(f"🧮 VALUES > {cutoff_value}: {len(greater_than)} values, sum = {sum_gt}")
-                    logger.info(f"🧮 VALUES >= {cutoff_value}: {len(greater_equal)} values, sum = {sum_ge}")
-                    logger.info(f"🧮 VALUES < {cutoff_value}: {len(less_than)} values, sum = {sum_lt}")
-                    logger.info(f"🧮 VALUES <= {cutoff_value}: {len(less_equal)} values, sum = {sum_le}")
-                    
-                    # Try < (strictly less than) - the fourth option!
-                    qualifying_values = less_than
-                    calculated_sum = sum_lt
-                    
-                    logger.info(f"🔄 TRYING FOURTH OPTION: Values < {cutoff_value} (strictly less than cutoff)")
-                    logger.info(f"🧮 SELECTED: {len(qualifying_values)} values < {cutoff_value}")
-                    logger.info(f"🧮 CALCULATED SUM: {calculated_sum}")
-                    
-                    # If this fails too, try TOTAL SUM as backup
+                    # Provide all the data and let LLM generate executable Python code
                     total_sum = sum(all_values)
-                    logger.info(f"🔍 BACKUP OPTION: Total sum of ALL values = {total_sum}")
+                    logger.info(f"📊 Total dataset: {len(all_values)} values, sum = {total_sum}")
+                    logger.info(f"🎯 Detected cutoff: {cutoff_value}")
+                    logger.info(f"📝 Sample values: {all_values[:10]}...")
                     
-                    # Let LLM verify the logic, but use Python result
+                    # Let LLM generate executable Python code
                     prompt = f"""{context}
 
-🧠 CSV DATA ANALYSIS WITH VERIFICATION:
-We have a CSV file with {len(all_values)} numerical values and cutoff {cutoff_value}.
+🧠 CSV DATA ANALYSIS - CODE GENERATION TASK:
+You have a CSV file with {len(all_values)} numerical values and a cutoff of {cutoff_value}.
 
-CUTOFF LOGIC VERIFICATION:
-- We need values STRICTLY LESS THAN {cutoff_value}
-- Found {len(qualifying_values)} qualifying values  
-- Examples of included values: {qualifying_values[:5]}
-- Examples of excluded values: {greater_equal[:5]}
+TASK: Write Python code to analyze this data. The code will be executed automatically.
 
-PYTHON CALCULATED THE SUM: {calculated_sum}
+DATA AVAILABLE:
+```python
+values = {all_values}
+cutoff = {cutoff_value}
+```
 
-Your task: Verify this is correct and return ONLY the number {calculated_sum}.
-Return the number without any explanations: {calculated_sum}"""
+REQUIREMENTS:
+1. Write Python code that analyzes the data
+2. Your code should determine the correct relationship to the cutoff
+3. End with a variable called 'result' containing the final answer
+4. The code will be executed and 'result' will be used as the answer
+
+EXAMPLE CODE FORMAT:
+```python
+# Your analysis logic here
+values = {all_values}
+cutoff = {cutoff_value}
+
+# Try different interpretations
+above_cutoff = [v for v in values if v > cutoff]
+below_cutoff = [v for v in values if v < cutoff]
+
+# Pick the right one based on quiz context
+result = sum(above_cutoff)  # or whatever logic is correct
+```
+
+Write the complete Python code. DO NOT include ```python``` markers, just the raw code:"""
 
                 else:
-                    # No cutoff - sum all values
-                    calculated_sum = sum(all_values)
-                    logger.info(f"🧮 PYTHON CALCULATION: Sum of all {len(all_values)} values = {calculated_sum}")
+                    # No cutoff - sum all values  
+                    total_sum = sum(all_values)
+                    logger.info(f"📊 No cutoff detected, summing all {len(all_values)} values = {total_sum}")
                     
                     prompt = f"""{context}
 
 🧠 CSV DATA ANALYSIS:
-Sum all {len(all_values)} numerical values.
+Sum all {len(all_values)} numerical values: {all_values}
 
-PYTHON CALCULATED THE SUM: {calculated_sum}
+CALCULATED SUM: {total_sum}
 
-Return this number: {calculated_sum}"""
+Return this number: {total_sum}"""
 
             elif "secret code" in quiz_info.get('question', '').lower():
                 # Special handling for secret code extraction
@@ -511,6 +507,35 @@ Do not include explanations or additional text."""
             
             # Log the raw LLM response
             logger.info(f"🤖 RAW LLM ANSWER RESPONSE: {answer}")
+            
+            # CODE EXECUTION: If this is CSV analysis with cutoff, try executing as Python code
+            if "CSV DATA ANALYSIS - CODE GENERATION" in prompt and "cutoff" in prompt.lower():
+                try:
+                    logger.info("🔧 Executing LLM-generated Python code...")
+                    
+                    # Create safe execution environment
+                    safe_globals = {
+                        '__builtins__': {
+                            'len': len, 'sum': sum, 'max': max, 'min': min,
+                            'range': range, 'list': list, 'int': int, 'float': float
+                        }
+                    }
+                    safe_locals = {}
+                    
+                    # Execute the LLM-generated code
+                    exec(answer, safe_globals, safe_locals)
+                    
+                    # Extract the result
+                    if 'result' in safe_locals:
+                        executed_result = safe_locals['result']
+                        logger.info(f"✅ CODE EXECUTION SUCCESS: result = {executed_result}")
+                        answer = executed_result
+                    else:
+                        logger.warning("⚠️ Code executed but no 'result' variable found")
+                        
+                except Exception as exec_error:
+                    logger.warning(f"⚠️ Code execution failed: {exec_error}")
+                    logger.info("🔄 Falling back to normal answer parsing...")
             
             # Try to parse as JSON if it looks like JSON
             if answer.startswith('{') or answer.startswith('['):
