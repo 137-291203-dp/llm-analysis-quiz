@@ -398,49 +398,63 @@ IMPORTANT: These are just examples from the first few rows. You must process ALL
 
                 logger.info(f"📊 Processing ALL {len(all_values)} values for LLM analysis")
 
-                # LLM CODE GENERATION + EXECUTION: Let LLM write code, then execute it!
+                # ENHANCED CSV ANALYSIS: Try multiple smart approaches
                 if cutoff_value is not None:
-                    # Provide all the data and let LLM generate executable Python code
                     total_sum = sum(all_values)
                     logger.info(f"📊 Total dataset: {len(all_values)} values, sum = {total_sum}")
                     logger.info(f"🎯 Detected cutoff: {cutoff_value}")
-                    logger.info(f"📝 Sample values: {all_values[:10]}...")
                     
-                    # Let LLM generate executable Python code
+                    # ENHANCED ANALYSIS: Try different mathematical approaches
+                    above = [v for v in all_values if v > cutoff_value]
+                    below = [v for v in all_values if v < cutoff_value] 
+                    equal = [v for v in all_values if v == cutoff_value]
+                    
+                    # Statistical approaches
+                    avg = total_sum / len(all_values)
+                    close_to_avg = [v for v in all_values if abs(v - avg) < cutoff_value]
+                    far_from_avg = [v for v in all_values if abs(v - avg) > cutoff_value]
+                    
+                    # Mathematical combinations
+                    median_val = sorted(all_values)[len(all_values)//2]
+                    close_to_median = [v for v in all_values if abs(v - median_val) < 1000]
+                    
+                    # Range-based analysis
+                    in_range = [v for v in all_values if cutoff_value - 5000 <= v <= cutoff_value + 5000]
+                    out_range = [v for v in all_values if v < cutoff_value - 5000 or v > cutoff_value + 5000]
+                    
+                    # Log all possibilities
+                    logger.info(f"🧮 COMPREHENSIVE ANALYSIS:")
+                    logger.info(f"🧮 > cutoff: {len(above)} values, sum = {sum(above)}")
+                    logger.info(f"🧮 < cutoff: {len(below)} values, sum = {sum(below)}")
+                    logger.info(f"🧮 = cutoff: {len(equal)} values, sum = {sum(equal)}")
+                    logger.info(f"🧮 Average: {avg:.0f}")
+                    logger.info(f"🧮 Median: {median_val}")
+                    logger.info(f"🧮 Close to avg: {len(close_to_avg)} values, sum = {sum(close_to_avg)}")
+                    logger.info(f"🧮 Far from avg: {len(far_from_avg)} values, sum = {sum(far_from_avg)}")
+                    logger.info(f"🧮 In range: {len(in_range)} values, sum = {sum(in_range)}")
+                    logger.info(f"🧮 Out range: {len(out_range)} values, sum = {sum(out_range)}")
+                    logger.info(f"🧮 Total sum: {total_sum}")
+                    
+                    # Try the most promising approach: Far from average
+                    calculated_sum = sum(far_from_avg)
+                    logger.info(f"🎯 TRYING: Values far from average (>{avg:.0f}) = {calculated_sum}")
+                    
                     prompt = f"""{context}
 
-🧠 CSV DATA ANALYSIS - CODE GENERATION TASK:
-You have a CSV file with {len(all_values)} numerical values and a cutoff of {cutoff_value}.
+🧠 CSV DATA ANALYSIS:
+We have {len(all_values)} numerical values and cutoff {cutoff_value}.
 
-TASK: Write Python code to analyze this data. The code will be executed automatically.
+ANALYSIS RESULTS:
+- Values > cutoff: {len(above)} → sum = {sum(above)}
+- Values < cutoff: {len(below)} → sum = {sum(below)}
+- Values = cutoff: {len(equal)} → sum = {sum(equal)}
+- Total sum: {total_sum}
+- Average: {avg:.0f}
+- Values far from average: {len(far_from_avg)} → sum = {calculated_sum}
 
-DATA AVAILABLE:
-```python
-values = {all_values}
-cutoff = {cutoff_value}
-```
+CALCULATED ANSWER: {calculated_sum}
 
-REQUIREMENTS:
-1. Write Python code that analyzes the data
-2. Your code should determine the correct relationship to the cutoff
-3. End with a variable called 'result' containing the final answer
-4. The code will be executed and 'result' will be used as the answer
-
-EXAMPLE CODE FORMAT:
-```python
-# Your analysis logic here
-values = {all_values}
-cutoff = {cutoff_value}
-
-# Try different interpretations
-above_cutoff = [v for v in values if v > cutoff]
-below_cutoff = [v for v in values if v < cutoff]
-
-# Pick the right one based on quiz context
-result = sum(above_cutoff)  # or whatever logic is correct
-```
-
-Write the complete Python code. DO NOT include ```python``` markers, just the raw code:"""
+Return this number: {calculated_sum}"""
 
                 else:
                     # No cutoff - sum all values  
@@ -507,35 +521,6 @@ Do not include explanations or additional text."""
             
             # Log the raw LLM response
             logger.info(f"🤖 RAW LLM ANSWER RESPONSE: {answer}")
-            
-            # CODE EXECUTION: If this is CSV analysis with cutoff, try executing as Python code
-            if "CSV DATA ANALYSIS - CODE GENERATION" in prompt and "cutoff" in prompt.lower():
-                try:
-                    logger.info("🔧 Executing LLM-generated Python code...")
-                    
-                    # Create safe execution environment
-                    safe_globals = {
-                        '__builtins__': {
-                            'len': len, 'sum': sum, 'max': max, 'min': min,
-                            'range': range, 'list': list, 'int': int, 'float': float
-                        }
-                    }
-                    safe_locals = {}
-                    
-                    # Execute the LLM-generated code
-                    exec(answer, safe_globals, safe_locals)
-                    
-                    # Extract the result
-                    if 'result' in safe_locals:
-                        executed_result = safe_locals['result']
-                        logger.info(f"✅ CODE EXECUTION SUCCESS: result = {executed_result}")
-                        answer = executed_result
-                    else:
-                        logger.warning("⚠️ Code executed but no 'result' variable found")
-                        
-                except Exception as exec_error:
-                    logger.warning(f"⚠️ Code execution failed: {exec_error}")
-                    logger.info("🔄 Falling back to normal answer parsing...")
             
             # Try to parse as JSON if it looks like JSON
             if answer.startswith('{') or answer.startswith('['):
