@@ -304,6 +304,13 @@ Do not include explanations or additional text."""
     
     def submit_answer(self, submit_url, quiz_url, answer):
         """Submit answer to the specified endpoint"""
+        # Handle relative submit URLs
+        if submit_url.startswith('/'):
+            from urllib.parse import urljoin, urlparse
+            base_url = urlparse(quiz_url)._replace(path='', query='', fragment='').geturl()
+            submit_url = urljoin(base_url, submit_url)
+            logger.info(f"Resolved relative submit URL to: {submit_url}")
+        
         logger.info(f"Submitting answer to: {submit_url}")
         
         # If answer is already a complete JSON object with email/secret, use it directly
@@ -366,7 +373,8 @@ Do not include explanations or additional text."""
                 logger.info(f"Processing data from: {quiz_info['data_source']}")
                 processed_data = self.data_processor.process_data_source(
                     quiz_info['data_source'],
-                    quiz_info.get('question', '')
+                    quiz_info.get('question', ''),
+                    base_url=quiz_url
                 )
             
             # Solve task with LLM

@@ -26,7 +26,7 @@ class DataProcessor:
         os.makedirs(self.download_dir, exist_ok=True)
         os.makedirs(self.temp_dir, exist_ok=True)
     
-    def process_data_source(self, source_url, question_context=""):
+    def process_data_source(self, source_url, question_context="", base_url=None):
         """Process data from various sources - main entry point"""
         logger.info(f"📊 Processing data source: {source_url}")
         
@@ -73,7 +73,7 @@ class DataProcessor:
             else:
                 # Try to determine type from content or treat as webpage
                 logger.info("🌐 Processing as webpage")
-                return self.scrape_webpage(source_url)
+                return self.scrape_webpage(source_url, base_url=base_url)
                 
         except Exception as e:
             logger.error(f"❌ Error processing data source: {e}")
@@ -177,12 +177,30 @@ class DataProcessor:
             logger.error(f"Error reading JSON: {e}")
             raise
     
-    def scrape_webpage(self, url):
-        """Scrape webpage content"""
+    def scrape_webpage(self, url, base_url=None):
+        """Scrape webpage content with support for relative URLs"""
+        # Handle relative URLs
+        if url.startswith('/') and base_url:
+            from urllib.parse import urljoin
+            url = urljoin(base_url, url)
+            logger.info(f"Resolved relative URL to: {url}")
+        elif url.startswith('/'):
+            # Default to https scheme if no base URL provided
+            url = f"https://tds-llm-analysis.s-anand.net{url}"
+            logger.info(f"Applied default base to relative URL: {url}")
+        
         logger.info(f"Scraping webpage: {url}")
         
         try:
-            response = requests.get(url, timeout=30)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+            }
+            
+            response = requests.get(url, headers=headers, timeout=30)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
