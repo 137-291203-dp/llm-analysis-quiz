@@ -13,23 +13,23 @@ class LLMClient:
     """Unified LLM client supporting AI Pipe and OpenAI"""
     
     def __init__(self):
-        self.use_aipipe = config.Config.use_aipipe()
+        self.use_aipipe = Config.use_aipipe()
         
         if self.use_aipipe:
             logger.info("Using AI Pipe for LLM requests")
-            self.token = config.Config.AIPIPE_TOKEN
-            self.base_url = config.Config.AIPIPE_BASE_URL
+            self.token = Config.AIPIPE_TOKEN
+            self.base_url = Config.AIPIPE_BASE_URL
         else:
             logger.info("Using OpenAI for LLM requests")
-            self.client = OpenAI(api_key=config.Config.OPENAI_API_KEY)
+            self.client = OpenAI(api_key=Config.OPENAI_API_KEY)
     
     def chat_completion(self, messages, model=None, temperature=None, max_tokens=None):
         """Create a chat completion using AI Pipe or OpenAI"""
         
         # Use config defaults if not specified
-        model = model or config.Config.LLM_MODEL
-        temperature = temperature or config.Config.LLM_TEMPERATURE
-        max_tokens = max_tokens or config.Config.LLM_MAX_TOKENS
+        model = model or Config.LLM_MODEL
+        temperature = temperature or Config.LLM_TEMPERATURE
+        max_tokens = max_tokens or Config.LLM_MAX_TOKENS
         
         if self.use_aipipe:
             return self._aipipe_chat_completion(messages, model, temperature, max_tokens)

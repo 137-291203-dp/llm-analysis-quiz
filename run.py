@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 # Import app for gunicorn
 from app_with_swagger import app
-from config import Config
+from src.config import Config
 
 if __name__ == "__main__":
     print("Starting LLM Analysis Quiz with Swagger UI")
