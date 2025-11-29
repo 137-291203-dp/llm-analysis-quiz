@@ -22,7 +22,7 @@ class QuizSolver:
     def get_remaining_time(self):
         """Get remaining time in seconds"""
         elapsed = time.time() - self.start_time
-        return max(0, config.Config.MAX_QUIZ_TIME - elapsed)
+        return max(0, Config.MAX_QUIZ_TIME - elapsed)
     
     def fetch_quiz_page(self, url):
         """Fetch and render quiz page using Playwright"""
@@ -78,6 +78,9 @@ Extract and return a JSON object with:
 
 Return ONLY valid JSON, no other text."""
 
+        # Log the prompt being sent to LLM
+        logger.info(f"🤖 QUIZ PARSING PROMPT: {prompt[:500]}...")
+
         try:
             response = self.llm_client.chat_completion(
                 messages=[
@@ -88,6 +91,9 @@ Return ONLY valid JSON, no other text."""
             
             result = response.choices[0].message.content.strip()
             
+            # Log the raw LLM response
+            logger.info(f"🤖 QUIZ PARSING RESPONSE: {result}")
+            
             # Try to extract JSON from markdown code blocks if present
             if '```json' in result:
                 result = result.split('```json')[1].split('```')[0].strip()
@@ -95,16 +101,17 @@ Return ONLY valid JSON, no other text."""
                 result = result.split('```')[1].split('```')[0].strip()
             
             parsed = json.loads(result)
-            logger.info(f"Parsed quiz: {parsed.get('question', 'Unknown')}")
+            logger.info(f"✅ PARSED QUIZ SUCCESSFULLY: {parsed.get('question', 'Unknown')}")
+            logger.info(f"📊 QUIZ DETAILS: {json.dumps(parsed, indent=2)}")
             return parsed
             
         except Exception as e:
-            logger.error(f"Error parsing quiz with LLM: {e}")
+            logger.error(f"❌ Error parsing quiz with LLM: {e}")
             raise
     
     def solve_task_with_llm(self, quiz_info, processed_data=None):
         """Use LLM to solve the quiz task"""
-        logger.info("Solving task with LLM")
+        logger.info("🧠 Solving task with LLM")
         
         context = f"""Question: {quiz_info.get('question', 'Unknown')}
 
@@ -122,6 +129,14 @@ Based on the above information, provide the answer to the question.
 Return ONLY the answer value in the appropriate format (number, string, boolean, or JSON object).
 Do not include explanations or additional text."""
 
+        # Log the full reasoning prompt
+        logger.info(f"🤖 ANSWER GENERATION PROMPT:")
+        logger.info(f"📋 Question: {quiz_info.get('question', 'Unknown')}")
+        logger.info(f"📝 Instructions: {quiz_info.get('instructions', 'None provided')}")
+        logger.info(f"📊 Data Available: {'Yes' if processed_data else 'No'}")
+        if processed_data:
+            logger.info(f"📈 Data Summary: {str(processed_data)[:200]}...")
+
         try:
             response = self.llm_client.chat_completion(
                 messages=[
@@ -132,27 +147,36 @@ Do not include explanations or additional text."""
             
             answer = response.choices[0].message.content.strip()
             
+            # Log the raw LLM response
+            logger.info(f"🤖 RAW LLM ANSWER RESPONSE: {answer}")
+            
             # Try to parse as JSON if it looks like JSON
             if answer.startswith('{') or answer.startswith('['):
                 try:
-                    answer = json.loads(answer)
-                except:
-                    pass
+                    parsed_answer = json.loads(answer)
+                    logger.info(f"📊 Parsed as JSON: {parsed_answer}")
+                    answer = parsed_answer
+                except Exception as parse_error:
+                    logger.warning(f"⚠️ JSON parsing failed: {parse_error}")
             # Try to parse as number
             elif answer.replace('.', '').replace('-', '').isdigit():
                 try:
-                    answer = int(answer) if '.' not in answer else float(answer)
-                except:
-                    pass
+                    parsed_answer = int(answer) if '.' not in answer else float(answer)
+                    logger.info(f"🔢 Parsed as number: {parsed_answer}")
+                    answer = parsed_answer
+                except Exception as parse_error:
+                    logger.warning(f"⚠️ Number parsing failed: {parse_error}")
             # Try to parse as boolean
             elif answer.lower() in ['true', 'false']:
-                answer = answer.lower() == 'true'
+                parsed_answer = answer.lower() == 'true'
+                logger.info(f"✅ Parsed as boolean: {parsed_answer}")
+                answer = parsed_answer
             
-            logger.info(f"Generated answer: {answer}")
+            logger.info(f"🎯 FINAL PROCESSED ANSWER: {answer} (type: {type(answer).__name__})")
             return answer
             
         except Exception as e:
-            logger.error(f"Error solving task with LLM: {e}")
+            logger.error(f"❌ Error solving task with LLM: {e}")
             raise
     
     def submit_answer(self, submit_url, quiz_url, answer):

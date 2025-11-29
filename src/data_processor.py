@@ -256,41 +256,6 @@ class DataProcessor:
             
             logger.info("Visualization created successfully")
             return data_uri
-            
-        except Exception as e:
-            logger.error(f"Error creating visualization: {e}")
-            raise
-    
-    def process_data_source(self, source, question_context=''):
-        """Process data from various sources"""
-        logger.info(f"Processing data source: {source}")
-        
-        try:
-            # Determine source type
-            if source.startswith('http://') or source.startswith('https://'):
-                # Download file or fetch API/webpage
-                if any(ext in source.lower() for ext in ['.pdf', '.csv', '.xlsx', '.json', '.txt']):
-                    filepath = self.download_file(source)
-                    return self.process_file(filepath, question_context)
-                elif 'api' in source.lower() or source.endswith('.json'):
-                    return self.fetch_api(source)
-                else:
-                    return self.scrape_webpage(source)
-            else:
-                # Local file
-                return self.process_file(source, question_context)
-                
-        except Exception as e:
-            logger.error(f"Error processing data source: {e}")
-            raise
-    
-    def process_file(self, filepath, question_context=''):
-        """Process a local file based on its extension"""
-        logger.info(f"Processing file: {filepath}")
-        
-        ext = os.path.splitext(filepath)[1].lower()
-        
-        try:
             if ext == '.pdf':
                 pdf_data = self.read_pdf(filepath)
                 # If question mentions specific page, extract that
