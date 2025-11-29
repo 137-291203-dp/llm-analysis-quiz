@@ -2,12 +2,22 @@ import logging
 import time
 import requests
 import json
-from playwright.sync_api import sync_playwright
 from src.config import Config
 from src.data_processor import DataProcessor
 from src.llm_client import LLMClient
 
+# Import Playwright with fallback capability
 logger = logging.getLogger(__name__)
+
+try:
+    from playwright.sync_api import sync_playwright
+    PLAYWRIGHT_AVAILABLE = True
+    logger.info("🎭 Playwright imported successfully")
+except ImportError as e:
+    PLAYWRIGHT_AVAILABLE = False
+    sync_playwright = None
+    logger.warning(f"⚠️ Playwright not available: {e}")
+    logger.info("🔄 Will use requests fallback for web scraping")
 
 class QuizSolver:
     """Solves quiz tasks using headless browser and LLM"""
@@ -53,66 +63,101 @@ class QuizSolver:
     
     def _fetch_with_playwright(self, url):
         """Primary method: Fetch using Playwright"""
+        if not PLAYWRIGHT_AVAILABLE:
+            raise ImportError("Playwright is not available")
+            
         logger.info("🎭 Using Playwright to fetch page")
         
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            )
-            page = context.new_page()
-            
-            # Navigate to page
-            response = page.goto(url, wait_until='networkidle')
-            
-            if response.status != 200:
-                raise Exception(f"HTTP {response.status}")
-            
-            # Wait for content to load
-            page.wait_for_timeout(2000)
-            
-            # Extract page content
-            data = {
-                'url': url,
-                'text': page.content(),
-                'title': page.title(),
-                'html': page.content(),
-                'method': 'playwright'
-            }
-            
-            browser.close()
-            logger.info("✅ Successfully fetched with Playwright")
-            return data
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                context = browser.new_context(
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                )
+                page = context.new_page()
+                
+                # Navigate to page
+                response = page.goto(url, wait_until='networkidle')
+                
+                if response.status != 200:
+                    raise Exception(f"HTTP {response.status}")
+                
+                # Wait for content to load
+                page.wait_for_timeout(2000)
+                
+                # Extract page content
+                data = {
+                    'url': url,
+                    'text': page.content(),
+                    'title': page.title(),
+                    'html': page.content(),
+                    'method': 'playwright'
+                }
+                
+                browser.close()
+                logger.info("✅ Successfully fetched with Playwright")
+                return data
+                
+        except Exception as e:
+            logger.error(f"❌ Playwright execution failed: {e}")
+            raise
     
     def _fetch_with_requests(self, url):
         """Fallback method: Fetch using requests + BeautifulSoup"""
         logger.info("🌐 Using requests fallback to fetch page")
         
-        import requests
-        from bs4 import BeautifulSoup
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+        except ImportError as e:
+            logger.error(f"❌ Required packages not available: {e}")
+            raise
         
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
         }
         
-        response = requests.get(url, headers=headers, timeout=30)
-        response.raise_for_status()
-        
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Extract text content
-        text_content = soup.get_text(separator='\n', strip=True)
-        
-        data = {
-            'url': url,
-            'text': text_content,
-            'title': soup.title.string if soup.title else 'Quiz Page',
-            'html': str(soup),
-            'method': 'requests_fallback'
-        }
-        
-        logger.info("✅ Successfully fetched with requests fallback")
-        return data
+        try:
+            logger.info(f"🔗 Making HTTP request to: {url}")
+            response = requests.get(url, headers=headers, timeout=30)
+            response.raise_for_status()
+            
+            logger.info(f"📄 Response received: {response.status_code} ({len(response.content)} bytes)")
+            
+            # Parse with BeautifulSoup
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Extract text content with better formatting
+            text_content = soup.get_text(separator='\n', strip=True)
+            
+            # Clean up excessive whitespace
+            import re
+            text_content = re.sub(r'\n\s*\n', '\n', text_content)
+            text_content = re.sub(r' +', ' ', text_content)
+            
+            data = {
+                'url': url,
+                'text': text_content,
+                'title': soup.title.string.strip() if soup.title and soup.title.string else 'Quiz Page',
+                'html': str(soup),
+                'method': 'requests_fallback',
+                'status_code': response.status_code,
+                'content_length': len(text_content)
+            }
+            
+            logger.info(f"✅ Successfully fetched with requests fallback ({len(text_content)} chars)")
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ HTTP request failed: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"❌ Error processing response: {e}")
+            raise
     
     def parse_quiz_with_llm(self, quiz_data):
         """Use LLM to parse quiz instructions and extract task details"""
