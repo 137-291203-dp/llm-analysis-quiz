@@ -226,14 +226,30 @@ USER CREDENTIALS (use these actual values):
         if processed_data:
             context += f"\n\nProcessed Data:\n{json.dumps(processed_data, indent=2)[:5000]}"
         
-        prompt = f"""{context}
+        # Check if this is a submission-style quiz that wants a complete JSON structure
+        if "POST this JSON" in quiz_info.get('question', '') and any("email" in str(instr) for instr in quiz_info.get('instructions', [])):
+            prompt = f"""{context}
 
-Based on the above information, provide the answer to the question.
-If the answer requires a JSON with "email" and "secret" fields, use the ACTUAL user credentials provided above.
-Do NOT use placeholder text like "your email" or "your secret" - use the real values.
+This is a JSON submission quiz. You need to return the COMPLETE JSON object that should be posted to the submit URL.
+Use these ACTUAL user credentials:
+- Email: {self.email}
+- Secret: {self.secret}
 
-For demo quizzes that ask for "anything you want" as the answer, provide a meaningful response like "demo-answer" or a relevant value.
-Return ONLY the answer value in the appropriate format (number, string, boolean, or JSON object).
+Return the complete JSON object in this exact format:
+{{
+  "email": "{self.email}",
+  "secret": "{self.secret}", 
+  "url": "https://tds-llm-analysis.s-anand.net/demo",
+  "answer": "your-meaningful-answer-here"
+}}
+
+Replace "your-meaningful-answer-here" with an appropriate answer value."""
+        else:
+            prompt = f"""{context}
+
+Based on the above information, provide ONLY the answer value to the question.
+For demo quizzes that ask for "anything you want" as the answer, provide a meaningful response like "demo-answer".
+Return ONLY the answer value in the appropriate format (number, string, boolean).
 Do not include explanations or additional text."""
 
         # Log the full reasoning prompt
@@ -290,12 +306,21 @@ Do not include explanations or additional text."""
         """Submit answer to the specified endpoint"""
         logger.info(f"Submitting answer to: {submit_url}")
         
-        payload = {
-            "email": self.email,
-            "secret": self.secret,
-            "url": quiz_url,
-            "answer": answer
-        }
+        # If answer is already a complete JSON object with email/secret, use it directly
+        if isinstance(answer, dict) and "email" in answer and "secret" in answer:
+            payload = answer
+            logger.info("Using complete JSON answer as payload")
+        else:
+            # Traditional payload structure for regular quiz answers
+            payload = {
+                "email": self.email,
+                "secret": self.secret,
+                "url": quiz_url,
+                "answer": answer
+            }
+            logger.info("Creating payload from answer value")
+        
+        logger.info(f"Final payload: {payload}")
         
         try:
             response = requests.post(
