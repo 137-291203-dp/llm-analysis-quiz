@@ -62,45 +62,57 @@ class QuizSolver:
                 }
     
     def _fetch_with_playwright(self, url):
-        """Primary method: Fetch using Playwright"""
-        if not PLAYWRIGHT_AVAILABLE:
-            raise ImportError("Playwright is not available")
-            
+        """Fetch page content using Playwright with JavaScript execution and error handling"""
         logger.info("🎭 Using Playwright to fetch page")
         
         try:
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
-                context = browser.new_context(
-                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                )
-                page = context.new_page()
+                page = browser.new_page()
                 
-                # Navigate to page
-                response = page.goto(url, wait_until='networkidle')
+                # Set a reasonable timeout
+                page.set_default_timeout(30000)
                 
-                if response.status != 200:
-                    raise Exception(f"HTTP {response.status}")
+                # Navigate to the page
+                response = page.goto(url, wait_until="networkidle")
                 
-                # Wait for content to load
-                page.wait_for_timeout(2000)
+                if not response:
+                    raise Exception(f"Failed to load page: {url}")
                 
-                # Extract page content
-                data = {
-                    'url': url,
-                    'text': page.content(),
-                    'title': page.title(),
-                    'html': page.content(),
-                    'method': 'playwright'
-                }
+                if response.status >= 400:
+                    raise Exception(f"HTTP {response.status}: {response.status_text}")
+                
+                # Wait for JavaScript to execute and DOM to be ready
+                try:
+                    # Wait for any JavaScript to finish executing
+                    page.wait_for_timeout(3000)  # Give JS time to run
+                    
+                    # Try to wait for specific content if it's a quiz page
+                    if 'demo-scrape-data' in url:
+                        # For scrape data pages, wait for content to load
+                        page.wait_for_function("document.body.innerText.trim().length > 10", timeout=5000)
+                        logger.info("🔄 Waited for dynamic content to load")
+                except:
+                    # If specific waits fail, continue with what we have
+                    logger.info("⚠️ Dynamic content wait timed out, proceeding...")
+                
+                # Get page content after JavaScript execution
+                content = page.content()
+                text_content = page.evaluate("document.body.innerText")
                 
                 browser.close()
-                logger.info("✅ Successfully fetched with Playwright")
-                return data
+                
+                logger.info("✅ Successfully fetched with Playwright (with JS execution)")
+                return {
+                    'method': 'playwright',
+                    'text': text_content.strip(),
+                    'html': content,
+                    'status_code': response.status
+                }
                 
         except Exception as e:
-            logger.error(f"❌ Playwright execution failed: {e}")
-            raise
+            logger.warning(f"⚠️ Playwright failed: {e}")
+            raise Exception(f"Playwright error: {e}")
     
     def _fetch_with_requests(self, url):
         """Fallback method: Fetch using requests + BeautifulSoup"""
@@ -245,10 +257,50 @@ Return the complete JSON object in this exact format:
 
 Replace "your-meaningful-answer-here" with an appropriate answer value."""
         else:
-            prompt = f"""{context}
+            # Enhanced prompting for different quiz types
+            if processed_data and "csv" in str(processed_data.get('type', '')):
+                # Special handling for CSV data analysis
+                prompt = f"""{context}
+
+IMPORTANT DATA ANALYSIS TASK:
+You have CSV data available. Analyze it carefully to answer the question.
+
+Common tasks include:
+- Summing numbers in specific columns
+- Finding averages, minimums, maximums
+- Counting rows or unique values
+- Finding patterns in data
+
+If the question mentions "sum of numbers", look for numeric columns in the data and sum the values.
+If there's a "cutoff" value mentioned in the question, filter data accordingly.
+
+Based on the processed data and question, provide the precise numerical answer.
+Return ONLY the answer value (number, string, or boolean) without explanations."""
+
+            elif "secret code" in quiz_info.get('question', '').lower():
+                # Special handling for secret code extraction
+                prompt = f"""{context}
+
+SECRET CODE EXTRACTION TASK:
+You need to find a secret code from the scraped webpage content.
+
+Look for:
+- Any alphanumeric codes or tokens
+- Hidden text content
+- Generated content from JavaScript
+- Pattern-like strings that could be secrets
+
+Extract the secret code and return it as a string.
+Return ONLY the secret code value without explanations."""
+
+            else:
+                # General quiz solving
+                prompt = f"""{context}
 
 Based on the above information, provide ONLY the answer value to the question.
-For demo quizzes that ask for "anything you want" as the answer, provide a meaningful response like "demo-answer".
+For demo quizzes that ask for "anything you want", provide a meaningful response like "demo-answer".
+If the question involves calculations, perform them accurately.
+If the question asks for data analysis, analyze the provided data thoroughly.
 Return ONLY the answer value in the appropriate format (number, string, boolean).
 Do not include explanations or additional text."""
 

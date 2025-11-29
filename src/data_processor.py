@@ -36,7 +36,7 @@ class DataProcessor:
             
             if source_url_lower.endswith('.csv'):
                 logger.info("📈 Processing CSV file")
-                filepath = self.download_file(source_url)
+                filepath = self.download_file(source_url, base_url=base_url)
                 df = self.read_csv(filepath)
                 return {
                     'type': 'csv',
@@ -48,22 +48,22 @@ class DataProcessor:
             
             elif source_url_lower.endswith('.pdf'):
                 logger.info("📄 Processing PDF file")
-                filepath = self.download_file(source_url)
+                filepath = self.download_file(source_url, base_url=base_url)
                 return self.read_pdf(filepath)
             
             elif source_url_lower.endswith('.json'):
                 logger.info("📊 Processing JSON file")
-                filepath = self.download_file(source_url)
+                filepath = self.download_file(source_url, base_url=base_url)
                 return self.read_json(filepath)
             
             elif source_url_lower.endswith(('.xls', '.xlsx')):
                 logger.info("📊 Processing Excel file")
-                filepath = self.download_file(source_url)
+                filepath = self.download_file(source_url, base_url=base_url)
                 return self.read_excel(filepath)
             
             elif source_url_lower.endswith(('.png', '.jpg', '.jpeg', '.gif')):
                 logger.info("🖼️ Processing image file")
-                filepath = self.download_file(source_url)
+                filepath = self.download_file(source_url, base_url=base_url)
                 return {'type': 'image', 'path': filepath, 'description': 'Image file downloaded'}
             
             elif 'api' in source_url_lower:
@@ -79,8 +79,19 @@ class DataProcessor:
             logger.error(f"❌ Error processing data source: {e}")
             return {"error": str(e), "source": source_url, "fallback": "Standard processing failed"}
     
-    def download_file(self, url, filename=None):
-        """Download a file from URL"""
+    def download_file(self, url, filename=None, base_url=None):
+        """Download a file from URL with relative URL support"""
+        # Handle relative URLs
+        if not url.startswith(('http://', 'https://')):
+            if base_url:
+                from urllib.parse import urljoin
+                url = urljoin(base_url, url)
+                logger.info(f"Resolved relative file URL to: {url}")
+            else:
+                # Default to https scheme if no base URL provided
+                url = f"https://tds-llm-analysis.s-anand.net/{url.lstrip('/')}"
+                logger.info(f"Applied default base to relative file URL: {url}")
+        
         logger.info(f"Downloading file from: {url}")
         
         try:
