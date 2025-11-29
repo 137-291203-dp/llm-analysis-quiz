@@ -26,6 +26,59 @@ class DataProcessor:
         os.makedirs(self.download_dir, exist_ok=True)
         os.makedirs(self.temp_dir, exist_ok=True)
     
+    def process_data_source(self, source_url, question_context=""):
+        """Process data from various sources - main entry point"""
+        logger.info(f"📊 Processing data source: {source_url}")
+        
+        try:
+            # Handle different data types based on URL/extension
+            source_url_lower = source_url.lower()
+            
+            if source_url_lower.endswith('.csv'):
+                logger.info("📈 Processing CSV file")
+                filepath = self.download_file(source_url)
+                df = self.read_csv(filepath)
+                return {
+                    'type': 'csv',
+                    'data': df.to_dict('records') if len(df) <= 1000 else df.head(1000).to_dict('records'),
+                    'summary': self.analyze_dataframe(df),
+                    'shape': df.shape,
+                    'columns': list(df.columns)
+                }
+            
+            elif source_url_lower.endswith('.pdf'):
+                logger.info("📄 Processing PDF file")
+                filepath = self.download_file(source_url)
+                return self.read_pdf(filepath)
+            
+            elif source_url_lower.endswith('.json'):
+                logger.info("📊 Processing JSON file")
+                filepath = self.download_file(source_url)
+                return self.read_json(filepath)
+            
+            elif source_url_lower.endswith(('.xls', '.xlsx')):
+                logger.info("📊 Processing Excel file")
+                filepath = self.download_file(source_url)
+                return self.read_excel(filepath)
+            
+            elif source_url_lower.endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                logger.info("🖼️ Processing image file")
+                filepath = self.download_file(source_url)
+                return {'type': 'image', 'path': filepath, 'description': 'Image file downloaded'}
+            
+            elif 'api' in source_url_lower:
+                logger.info("🔗 Processing API endpoint")
+                return self.fetch_api(source_url)
+            
+            else:
+                # Try to determine type from content or treat as webpage
+                logger.info("🌐 Processing as webpage")
+                return self.scrape_webpage(source_url)
+                
+        except Exception as e:
+            logger.error(f"❌ Error processing data source: {e}")
+            return {"error": str(e), "source": source_url, "fallback": "Standard processing failed"}
+    
     def download_file(self, url, filename=None):
         """Download a file from URL"""
         logger.info(f"Downloading file from: {url}")
