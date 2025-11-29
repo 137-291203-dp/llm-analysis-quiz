@@ -1,0 +1,32 @@
+# Environment
+.env
+venv/
+env/
+ENV/
+*.pyc
+__pycache__/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Playwright
+playwright-state/
+
+# Data files
+downloads/
+temp/
+*.pdf
+*.csv
+*.xlsx
+*.json.bak
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
