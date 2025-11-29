@@ -417,13 +417,17 @@ IMPORTANT: These are just examples from the first few rows. You must process ALL
                     logger.info(f"🧮 VALUES < {cutoff_value}: {len(less_than)} values, sum = {sum_lt}")
                     logger.info(f"🧮 VALUES <= {cutoff_value}: {len(less_equal)} values, sum = {sum_le}")
                     
-                    # Try >= (greater than or equal) - the third option!
-                    qualifying_values = greater_equal
-                    calculated_sum = sum_ge
+                    # Try < (strictly less than) - the fourth option!
+                    qualifying_values = less_than
+                    calculated_sum = sum_lt
                     
-                    logger.info(f"🔄 TRYING THIRD OPTION: Values >= {cutoff_value} (including cutoff value)")
-                    logger.info(f"🧮 SELECTED: {len(qualifying_values)} values >= {cutoff_value}")
+                    logger.info(f"🔄 TRYING FOURTH OPTION: Values < {cutoff_value} (strictly less than cutoff)")
+                    logger.info(f"🧮 SELECTED: {len(qualifying_values)} values < {cutoff_value}")
                     logger.info(f"🧮 CALCULATED SUM: {calculated_sum}")
+                    
+                    # If this fails too, try TOTAL SUM as backup
+                    total_sum = sum(all_values)
+                    logger.info(f"🔍 BACKUP OPTION: Total sum of ALL values = {total_sum}")
                     
                     # Let LLM verify the logic, but use Python result
                     prompt = f"""{context}
@@ -432,10 +436,10 @@ IMPORTANT: These are just examples from the first few rows. You must process ALL
 We have a CSV file with {len(all_values)} numerical values and cutoff {cutoff_value}.
 
 CUTOFF LOGIC VERIFICATION:
-- We need values GREATER THAN OR EQUAL TO {cutoff_value}
+- We need values STRICTLY LESS THAN {cutoff_value}
 - Found {len(qualifying_values)} qualifying values  
 - Examples of included values: {qualifying_values[:5]}
-- Examples of excluded values: {less_than[:5]}
+- Examples of excluded values: {greater_equal[:5]}
 
 PYTHON CALCULATED THE SUM: {calculated_sum}
 
