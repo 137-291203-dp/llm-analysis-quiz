@@ -277,24 +277,48 @@ Return the complete JSON object in this exact format:
 Replace "your-meaningful-answer-here" with an appropriate answer value."""
         else:
             # Enhanced prompting for different quiz types
-            if processed_data and "csv" in str(processed_data.get('type', '')):
+            if processed_data and processed_data.get('type') == 'csv':
                 # Special handling for CSV data analysis
+                cutoff_match = None
+                if quiz_info.get('question'):
+                    import re
+                    # Look for cutoff values in the quiz content
+                    cutoff_match = re.search(r'Cutoff:\s*(\d+)', str(quiz_info))
+                    if not cutoff_match:
+                        cutoff_match = re.search(r'cutoff[:\s]*(\d+)', str(processed_data), re.IGNORECASE)
+                
+                cutoff_instruction = ""
+                if cutoff_match:
+                    cutoff_value = int(cutoff_match.group(1))
+                    cutoff_instruction = f"""
+🎯 CUTOFF VALUE DETECTED: {cutoff_value}
+- Compare each data value against this cutoff: {cutoff_value}
+- Sum values that are ABOVE the cutoff (> {cutoff_value})
+- OR sum values that are BELOW the cutoff (< {cutoff_value})
+- Choose based on which makes more sense for the question"""
+                
                 prompt = f"""{context}
 
-IMPORTANT DATA ANALYSIS TASK:
-You have CSV data available. Analyze it carefully to answer the question.
+🧠 IMPORTANT CSV DATA ANALYSIS TASK:
+You have access to CSV data that needs to be analyzed.
 
-Common tasks include:
-- Summing numbers in specific columns
-- Finding averages, minimums, maximums
-- Counting rows or unique values
-- Finding patterns in data
+CSV Data Summary:
+- Shape: {processed_data.get('shape', 'N/A')}
+- Columns: {processed_data.get('columns', [])}
+- Sample data values: {[list(item.values())[0] if item else None for item in processed_data.get('data', [])[:10]]}
+- Data type: Numbers in CSV format
 
-If the question mentions "sum of numbers", look for numeric columns in the data and sum the values.
-If there's a "cutoff" value mentioned in the question, filter data accordingly.
+{cutoff_instruction}
 
-Based on the processed data and question, provide the precise numerical answer.
-Return ONLY the answer value (number, string, or boolean) without explanations."""
+ANALYSIS INSTRUCTIONS:
+1. Extract all numerical values from the CSV data
+2. If there's a cutoff mentioned, filter values based on that cutoff
+3. Calculate the SUM of the relevant values
+4. The answer is likely asking for the total sum of numbers
+
+IMPORTANT: Look at the actual numerical values in the data and sum them correctly.
+Return ONLY the numerical sum as an integer.
+Do NOT return estimates like 5000000 - calculate the exact sum!"""
 
             elif "secret code" in quiz_info.get('question', '').lower():
                 # Special handling for secret code extraction
