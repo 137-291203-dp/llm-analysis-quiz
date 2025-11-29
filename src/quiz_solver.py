@@ -435,23 +435,33 @@ IMPORTANT: These are just examples from the first few rows. You must process ALL
                     logger.info(f"🧮 Out range: {len(out_range)} values, sum = {sum(out_range)}")
                     logger.info(f"🧮 Total sum: {total_sum}")
                     
-                    # Try the most promising approach: Far from average
-                    calculated_sum = sum(far_from_avg)
-                    logger.info(f"🎯 TRYING: Values far from average (>{avg:.0f}) = {calculated_sum}")
+                    # SYSTEMATIC APPROACH: Try the most likely candidates in order
+                    candidates = [
+                        ("Out of range (most values)", sum(out_range)),
+                        ("Close to average", sum(close_to_avg)), 
+                        ("Above cutoff", sum(above)),
+                        ("Total sum", total_sum),
+                        ("Below cutoff", sum(below)),
+                        ("In range", sum(in_range)),
+                        ("Far from average", sum(far_from_avg))
+                    ]
+                    
+                    # Try the most promising: Out of range (biggest group)
+                    calculated_sum = sum(out_range)
+                    logger.info(f"🎯 TRYING: Values out of range (±5000 from {cutoff_value}) = {calculated_sum}")
                     
                     prompt = f"""{context}
 
 🧠 CSV DATA ANALYSIS:
 We have {len(all_values)} numerical values and cutoff {cutoff_value}.
 
-ANALYSIS RESULTS:
+COMPREHENSIVE ANALYSIS:
 - Values > cutoff: {len(above)} → sum = {sum(above)}
-- Values < cutoff: {len(below)} → sum = {sum(below)}
-- Values = cutoff: {len(equal)} → sum = {sum(equal)}
+- Values < cutoff: {len(below)} → sum = {sum(below)} 
 - Total sum: {total_sum}
-- Average: {avg:.0f}
-- Values far from average: {len(far_from_avg)} → sum = {calculated_sum}
+- Values far from cutoff range (±5000): {len(out_range)} → sum = {calculated_sum}
 
+SELECTED APPROACH: Values outside the cutoff range
 CALCULATED ANSWER: {calculated_sum}
 
 Return this number: {calculated_sum}"""
