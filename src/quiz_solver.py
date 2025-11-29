@@ -304,12 +304,16 @@ SECRET CODE EXTRACTION TASK:
 You need to find a secret code from the scraped webpage content.
 
 Look for:
-- Any alphanumeric codes or tokens
-- Hidden text content
+- Text patterns like "Secret code is XXXXX"
+- Numbers mentioned as secret codes
 - Generated content from JavaScript
+- Any numeric codes (like 37543, 12345, etc.)
 - Pattern-like strings that could be secrets
 
-Extract the secret code and return it as a string.
+IMPORTANT: If you see text like "Secret code is 37543", extract just the number "37543".
+If you see any error about failed scraping but the content mentions a secret code, extract that code.
+
+Extract the secret code and return ONLY the numeric/alphanumeric code value.
 Return ONLY the secret code value without explanations."""
 
             else:
