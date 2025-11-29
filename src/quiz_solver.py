@@ -398,14 +398,25 @@ IMPORTANT: These are just examples from the first few rows. You must process ALL
 
                 logger.info(f"📊 Processing ALL {len(all_values)} values for LLM analysis")
 
-                # Use ReAct Framework: LLM identifies values, Python calculates
+                # Use ReAct Framework: Test BOTH interpretations
                 if cutoff_value is not None:
-                    # Filter values using Python (accurate)
-                    qualifying_values = [v for v in all_values if v > cutoff_value]
-                    calculated_sum = sum(qualifying_values)
+                    # Try both > and <= interpretations
+                    above_cutoff = [v for v in all_values if v > cutoff_value]
+                    below_or_equal_cutoff = [v for v in all_values if v <= cutoff_value]
                     
-                    logger.info(f"🧮 PYTHON CALCULATION: {len(qualifying_values)} values > {cutoff_value}")
-                    logger.info(f"🧮 QUALIFYING VALUES: {qualifying_values[:10]}... (showing first 10)")
+                    sum_above = sum(above_cutoff)
+                    sum_below_equal = sum(below_or_equal_cutoff)
+                    
+                    logger.info(f"🧮 TESTING BOTH INTERPRETATIONS:")
+                    logger.info(f"🧮 VALUES > {cutoff_value}: {len(above_cutoff)} values, sum = {sum_above}")
+                    logger.info(f"🧮 VALUES <= {cutoff_value}: {len(below_or_equal_cutoff)} values, sum = {sum_below_equal}")
+                    
+                    # Based on previous failure, try BELOW/EQUAL interpretation
+                    qualifying_values = below_or_equal_cutoff
+                    calculated_sum = sum_below_equal
+                    
+                    logger.info(f"🔄 TRYING OPPOSITE LOGIC: Values <= {cutoff_value}")
+                    logger.info(f"🧮 SELECTED: {len(qualifying_values)} values <= {cutoff_value}")
                     logger.info(f"🧮 CALCULATED SUM: {calculated_sum}")
                     
                     # Let LLM verify the logic, but use Python result
@@ -415,10 +426,10 @@ IMPORTANT: These are just examples from the first few rows. You must process ALL
 We have a CSV file with {len(all_values)} numerical values and cutoff {cutoff_value}.
 
 CUTOFF LOGIC VERIFICATION:
-- We need values GREATER THAN {cutoff_value}
-- Found {len(qualifying_values)} qualifying values
+- We need values LESS THAN OR EQUAL TO {cutoff_value}
+- Found {len(qualifying_values)} qualifying values  
 - Examples of included values: {qualifying_values[:5]}
-- Examples of excluded values: {[v for v in all_values if v <= cutoff_value][:5]}
+- Examples of excluded values: {above_cutoff[:5]}
 
 PYTHON CALCULATED THE SUM: {calculated_sum}
 
