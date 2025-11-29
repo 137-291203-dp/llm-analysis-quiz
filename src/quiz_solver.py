@@ -231,6 +231,8 @@ USER CREDENTIALS (use these actual values):
 Based on the above information, provide the answer to the question.
 If the answer requires a JSON with "email" and "secret" fields, use the ACTUAL user credentials provided above.
 Do NOT use placeholder text like "your email" or "your secret" - use the real values.
+
+For demo quizzes that ask for "anything you want" as the answer, provide a meaningful response like "demo-answer" or a relevant value.
 Return ONLY the answer value in the appropriate format (number, string, boolean, or JSON object).
 Do not include explanations or additional text."""
 
