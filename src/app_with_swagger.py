@@ -135,7 +135,12 @@ class QuizSolver(Resource):
                         secret=Config.STUDENT_SECRET,
                         start_time=start_time
                     )
-                    solver.solve_quiz_chain(quiz_url, resume=data.get('resume', False))
+                    # Clear checkpoint if not resuming
+                    if not data.get('resume', True):  # Default to resume
+                        solver.clear_checkpoint()
+                        logger.info("🗑️ Checkpoint cleared - starting fresh")
+                    
+                    solver.solve_quiz_chain(quiz_url)
                 except Exception as e:
                     logger.error(f"Error solving quiz: {e}", exc_info=True)
             

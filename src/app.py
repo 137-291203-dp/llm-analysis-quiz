@@ -88,7 +88,7 @@ def handle_quiz():
     
     return jsonify({
         'status': 'accepted',
-        'message': 'Quiz solving started (with checkpoint support)',
+        'message': 'Quiz solving started (with auto-resume)',
         'url': quiz_url
     }), 200
 
