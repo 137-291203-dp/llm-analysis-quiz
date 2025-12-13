@@ -522,6 +522,27 @@ For counting tasks, count the items that match the specified criteria.
 Return ONLY the answer value in the appropriate format (number, string, boolean).
 Do not include explanations or additional text."""
 
+            elif processed_data and isinstance(processed_data, dict) and ('embedding1' in str(processed_data) or 'embedding2' in str(processed_data)):
+                # Handle cosine similarity calculation
+                prompt = f"""{context}
+
+🧮 COSINE SIMILARITY CALCULATION:
+Data contains embeddings for cosine similarity calculation.
+
+Data: {processed_data}
+
+Calculate cosine similarity using the formula: (A · B) / (||A|| × ||B||)
+Where A and B are the two embedding vectors.
+
+Steps:
+1. Extract embedding1 and embedding2 vectors
+2. Calculate dot product (A · B)
+3. Calculate magnitudes ||A|| and ||B||
+4. Divide dot product by product of magnitudes
+5. Round to 3 decimal places
+
+Return ONLY the calculated cosine similarity as a number (e.g., 0.800)."""
+
             elif "secret code" in quiz_info.get('question', '').lower():
                 # Special handling for secret code extraction
                 prompt = f"""{context}
@@ -640,8 +661,8 @@ Do not include explanations or additional text."""
                             logger.info(f"🔍 Extracted number from text: {answer}")
                 except (ValueError, AttributeError):
                     pass
-            # Try to parse as boolean
-            elif answer.lower() in ['true', 'false']:
+            # Try to parse as boolean (only for strings)
+            elif isinstance(answer, str) and answer.lower() in ['true', 'false']:
                 parsed_answer = answer.lower() == 'true'
                 logger.info(f"✅ Parsed as boolean: {parsed_answer}")
                 answer = parsed_answer
