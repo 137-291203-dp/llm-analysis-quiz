@@ -18,7 +18,7 @@ CORS(app)
 
 # Validate configuration on startup
 try:
-    config.Config.validate()
+    Config.validate()
     logger.info("Configuration validated successfully")
 except ValueError as e:
     logger.error(f"Configuration error: {e}")
@@ -30,7 +30,7 @@ def home():
     return jsonify({
         'status': 'running',
         'message': 'LLM Analysis Quiz API',
-        'email': config.Config.STUDENT_EMAIL
+        'email': Config.STUDENT_EMAIL
     }), 200
 
 @app.route('/quiz', methods=['POST'])
@@ -59,13 +59,13 @@ def handle_quiz():
         return jsonify({'error': 'Missing required fields: email, secret, url'}), 400
     
     # Verify secret
-    if data['secret'] != config.Config.STUDENT_SECRET:
+    if data['secret'] != Config.STUDENT_SECRET:
         logger.warning(f"Invalid secret from {data.get('email')}")
         return jsonify({'error': 'Invalid secret'}), 403
     
     # Verify email
-    if data['email'] != config.Config.STUDENT_EMAIL:
-        logger.warning(f"Email mismatch: {data.get('email')} != {config.Config.STUDENT_EMAIL}")
+    if data['email'] != Config.STUDENT_EMAIL:
+        logger.warning(f"Email mismatch: {data.get('email')} != {Config.STUDENT_EMAIL}")
         return jsonify({'error': 'Email mismatch'}), 403
     
     quiz_url = data['url']
@@ -75,8 +75,8 @@ def handle_quiz():
     def solve_quiz_async():
         try:
             solver = QuizSolver(
-                email=config.Config.STUDENT_EMAIL,
-                secret=config.Config.STUDENT_SECRET,
+                email=Config.STUDENT_EMAIL,
+                secret=Config.STUDENT_SECRET,
                 start_time=start_time
             )
             solver.solve_quiz_chain(quiz_url)
@@ -88,9 +88,45 @@ def handle_quiz():
     
     return jsonify({
         'status': 'accepted',
-        'message': 'Quiz solving started',
+        'message': 'Quiz solving started (with checkpoint support)',
         'url': quiz_url
     }), 200
+
+@app.route('/checkpoint', methods=['GET', 'DELETE'])
+def manage_checkpoint():
+    """
+    Manage quiz checkpoint
+    GET: Check if checkpoint exists
+    DELETE: Clear checkpoint
+    """
+    try:
+        # Create a temporary solver to access checkpoint methods
+        solver = QuizSolver(
+            email=Config.STUDENT_EMAIL,
+            secret=Config.STUDENT_SECRET,
+            start_time=time.time()
+        )
+        
+        if request.method == 'GET':
+            # Get checkpoint info
+            checkpoint = solver.load_checkpoint()
+            return jsonify({
+                "exists": checkpoint is not None,
+                "checkpoint": checkpoint,
+                "message": f"Checkpoint {'found' if checkpoint else 'not found'}"
+            }), 200
+        
+        elif request.method == 'DELETE':
+            # Clear checkpoint
+            solver.clear_checkpoint()
+            return jsonify({
+                "message": "Checkpoint cleared",
+                "exists": False
+            }), 200
+            
+    except Exception as e:
+        logger.error(f"Error in checkpoint endpoint: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.errorhandler(404)
 def not_found(error):
@@ -105,8 +141,8 @@ if __name__ == '__main__':
     import os
     
     # Create necessary directories
-    os.makedirs(config.Config.DOWNLOAD_DIR, exist_ok=True)
-    os.makedirs(config.Config.TEMP_DIR, exist_ok=True)
+    os.makedirs(Config.DOWNLOAD_DIR, exist_ok=True)
+    os.makedirs(Config.TEMP_DIR, exist_ok=True)
     
-    logger.info(f"Starting server on port {config.Config.PORT}")
-    app.run(host='0.0.0.0', port=config.Config.PORT, debug=False)
+    logger.info(f"Starting server on port {Config.PORT}")
+    app.run(host='0.0.0.0', port=Config.PORT, debug=False)

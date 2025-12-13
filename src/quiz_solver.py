@@ -33,12 +33,76 @@ class QuizSolver:
         # Add caching for speed
         self._page_cache = {}
         self._data_cache = {}
+        # Add checkpoint system
+        self.checkpoint_file = f"checkpoint_{self.email.replace('@', '_').replace('.', '_')}.json"
         
     def get_remaining_time(self):
         """Get remaining time in seconds"""
         elapsed = time.time() - self.start_time
         return max(0, self.timeout - elapsed)
-        return max(0, Config.MAX_QUIZ_TIME - elapsed)
+    
+    def save_checkpoint(self, current_url, attempt, progress):
+        """Save current progress to checkpoint file"""
+        import json
+        import os
+        
+        checkpoint_data = {
+            'current_url': current_url,
+            'attempt': attempt,
+            'progress': progress,
+            'timestamp': time.time(),
+            'email': self.email
+        }
+        
+        try:
+            os.makedirs('checkpoints', exist_ok=True)
+            checkpoint_path = os.path.join('checkpoints', self.checkpoint_file)
+            
+            with open(checkpoint_path, 'w') as f:
+                json.dump(checkpoint_data, f, indent=2)
+            
+            logger.info(f"💾 Checkpoint saved: Question {attempt} at {current_url}")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to save checkpoint: {e}")
+    
+    def load_checkpoint(self):
+        """Load progress from checkpoint file"""
+        import json
+        import os
+        
+        checkpoint_path = os.path.join('checkpoints', self.checkpoint_file)
+        
+        if not os.path.exists(checkpoint_path):
+            logger.info("📂 No checkpoint found, starting fresh")
+            return None
+        
+        try:
+            with open(checkpoint_path, 'r') as f:
+                checkpoint_data = json.load(f)
+            
+            # Check if checkpoint is recent (within 24 hours)
+            if time.time() - checkpoint_data.get('timestamp', 0) > 86400:
+                logger.info("📂 Checkpoint too old, starting fresh")
+                return None
+            
+            logger.info(f"📂 Checkpoint loaded: Resume from question {checkpoint_data['attempt']} at {checkpoint_data['current_url']}")
+            return checkpoint_data
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to load checkpoint: {e}")
+            return None
+    
+    def clear_checkpoint(self):
+        """Clear checkpoint file after successful completion"""
+        import os
+        
+        checkpoint_path = os.path.join('checkpoints', self.checkpoint_file)
+        
+        try:
+            if os.path.exists(checkpoint_path):
+                os.remove(checkpoint_path)
+                logger.info("🗑️ Checkpoint cleared after completion")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to clear checkpoint: {e}")
     
     def fetch_quiz_page(self, url):
         """Fetch and render quiz page using Playwright with fallback"""
@@ -679,12 +743,23 @@ Do not include explanations or additional text."""
             return None
     
     def solve_quiz_chain(self, initial_url):
-        """Solve a chain of quiz tasks"""
-        logger.info(f"Starting quiz chain from: {initial_url}")
+        """Solve a chain of quiz tasks with checkpoint support"""
+        logger.info(f"🚀 Starting quiz chain from: {initial_url}")
         
-        current_url = initial_url
-        attempt = 0
-        max_attempts = 20  # Prevent infinite loops
+        # Try to load checkpoint first
+        checkpoint = self.load_checkpoint()
+        
+        if checkpoint and checkpoint.get('current_url'):
+            logger.info(f"📂 RESUMING from checkpoint!")
+            current_url = checkpoint['current_url']
+            attempt = checkpoint['attempt']
+            logger.info(f"🔄 Continuing from question {attempt} at {current_url}")
+        else:
+            logger.info(f"📂 Starting fresh quiz chain")
+            current_url = initial_url
+            attempt = 0
+        
+        max_attempts = 25  # Increased for more questions
         
         while current_url and attempt < max_attempts:
             attempt += 1
@@ -714,9 +789,20 @@ Do not include explanations or additional text."""
             next_url = result.get('url')
             if next_url:
                 logger.info(f"Moving to next quiz: {next_url}")
+                
+                # Save checkpoint before moving to next question
+                progress_info = {
+                    'last_correct': result.get('correct', False),
+                    'last_reason': result.get('reason', ''),
+                    'questions_completed': attempt
+                }
+                self.save_checkpoint(next_url, attempt, progress_info)
+                
                 current_url = next_url
             else:
-                logger.info("Quiz chain completed - no more URLs")
+                logger.info("🎉 Quiz chain completed - no more URLs!")
+                # Clear checkpoint on successful completion
+                self.clear_checkpoint()
                 break
         
         logger.info(f"Quiz chain finished after {attempt} attempts")

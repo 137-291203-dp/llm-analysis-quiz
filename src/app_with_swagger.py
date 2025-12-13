@@ -135,7 +135,7 @@ class QuizSolver(Resource):
                         secret=Config.STUDENT_SECRET,
                         start_time=start_time
                     )
-                    solver.solve_quiz_chain(quiz_url)
+                    solver.solve_quiz_chain(quiz_url, resume=data.get('resume', False))
                 except Exception as e:
                     logger.error(f"Error solving quiz: {e}", exc_info=True)
             
