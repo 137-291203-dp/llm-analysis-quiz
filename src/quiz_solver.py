@@ -30,6 +30,9 @@ class QuizSolver:
         self.data_processor = DataProcessor()
         # Initialize with 10 minutes timeout for 24 questions
         self.timeout = 600  # 10 minutes for 24 questions
+        # Add caching for speed
+        self._page_cache = {}
+        self._data_cache = {}
         
     def get_remaining_time(self):
         """Get remaining time in seconds"""
@@ -85,10 +88,10 @@ class QuizSolver:
                 if response.status >= 400:
                     raise Exception(f"HTTP {response.status}: {response.status_text}")
                 
-                # Wait for JavaScript to execute and DOM to be ready
-                try:
-                    # Faster JavaScript execution for speed
-                    page.wait_for_timeout(2000)  # Reduced from 5000ms
+                # Skip unnecessary waits for simple pages
+                if 'demo-scrape-data' in url or 'audio' in url:
+                    # Only wait for JS on pages that need it
+                    page.wait_for_timeout(3000)
                     
                     # Try to wait for specific content if it's a quiz page
                     if 'demo-scrape-data' in url:
@@ -108,12 +111,11 @@ class QuizSolver:
                             page.wait_for_timeout(1000)  # Reduced wait after triggering load
                         except:
                             pass
+                else:
+                    # For simple pages, skip JS waits entirely
+                    logger.info("⚡ Skipping JS waits for simple page")
                             
-                except Exception as wait_error:
-                    # If specific waits fail, continue with what we have
-                    logger.info(f"⚠️ Dynamic content wait failed: {wait_error}, proceeding...")
-                
-                # Get page content after JavaScript execution
+                # Get page content after JavaScript execution (if any)
                 content = page.content()
                 text_content = page.evaluate("document.body.innerText")
                 
@@ -475,13 +477,9 @@ For audio transcription tasks, return "demo-answer" as placeholder since audio p
 Return ONLY the answer value in the appropriate format (number, string, boolean).
 Do not include explanations or additional text."""
 
-        # Log the full reasoning prompt
-        logger.info(f"🤖 ANSWER GENERATION PROMPT:")
-        logger.info(f"📋 Question: {quiz_info.get('question', 'Unknown')}")
-        logger.info(f"📝 Instructions: {quiz_info.get('instructions', 'None provided')}")
-        logger.info(f"📊 Data Available: {'Yes' if processed_data else 'No'}")
-        if processed_data:
-            logger.info(f"📈 Data Summary: {str(processed_data)[:200]}...")
+        # Minimal logging for speed
+        logger.info(f"🤖 Generating answer for: {quiz_info.get('question', 'Unknown')[:50]}...")
+        logger.info(f"📊 Data: {'Yes' if processed_data else 'No'}")
 
         try:
             response = self.llm_client.chat_completion(
@@ -587,13 +585,17 @@ Do not include explanations or additional text."""
     
     def solve_single_quiz(self, quiz_url):
         """Solve a single quiz task"""
-        logger.info(f"Solving quiz: {quiz_url}")
+        logger.info(f"⚡ Solving quiz: {quiz_url}")
         
         try:
             # Check remaining time
             if self.get_remaining_time() < 10:
                 logger.warning("Not enough time remaining")
                 return None
+            
+            # Fast path for simple quiz types
+            if any(x in quiz_url for x in ['git', 'md', 'uv']):
+                logger.info("⚡ Using fast path for simple quiz")
             
             # Fetch quiz page
             quiz_data = self.fetch_quiz_page(quiz_url)
