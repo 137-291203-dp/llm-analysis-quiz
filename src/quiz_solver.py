@@ -613,14 +613,18 @@ Do not include explanations or additional text."""
             # Solve task with LLM
             answer = self.solve_task_with_llm(quiz_info, processed_data)
             
-            # Submit answer
-            submit_url = quiz_info.get('submit_url')
-            if submit_url:
-                result = self.submit_answer(submit_url, quiz_url, answer)
-                return result
-            else:
-                logger.error("No submit URL found")
-                return None
+            # Submit the answer - always use /submit endpoint
+            submit_url = quiz_info.get('submit_url', '/submit')
+            # Force submit URL to be /submit for project2 chain
+            if 'project2' in quiz_url:
+                submit_url = 'https://tds-llm-analysis.s-anand.net/submit'
+            
+            submit_result = self.submit_answer(
+                submit_url,
+                quiz_url,
+                answer
+            )
+            return submit_result
                 
         except Exception as e:
             logger.error(f"Error solving quiz: {e}", exc_info=True)

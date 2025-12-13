@@ -145,25 +145,6 @@ curl -X POST http://localhost:5000/api/v1/quiz/solve \
   -H "Content-Type: application/json" \
   -d '{"email": "your@email.com", "secret": "your-secret", "url": "https://tds-llm-analysis.s-anand.net/demo"}'
 ```
-<<<<<<< HEAD
-
-## 🚀 Deployment
-
-**See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for detailed instructions**
-
-### **Quick Deploy Options:**
-
-| Platform | Difficulty | Command |
-|----------|------------|---------|
-| **🌐 Render** | ⭐ Easy | Connect GitHub + Set env vars |
-| **🚂 Railway** | ⭐⭐ Medium | `railway up` |
-| **⚡ Heroku** | ⭐⭐ Medium | `git push heroku main` |
-| **🐳 Docker** | ⭐⭐⭐ Hard | `docker build -t llm-quiz .` |
-
-**✅ Render is recommended - much simpler than Docker for most use cases**
-
-=======
->>>>>>> bb002ae304c119e0484960e9f447f39cc3dad32e
 ## 🔧 Development
 
 ### **File Structure**
