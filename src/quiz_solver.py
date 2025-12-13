@@ -465,8 +465,45 @@ Extract the secret code and return ONLY the numeric/alphanumeric code value.
 Return ONLY the secret code value without explanations."""
 
             else:
-                # General quiz solving
-                prompt = f"""{context}
+                # Check if this is a table calculation question
+                if any(word in quiz_info.get('question', '').lower() for word in ['sum', 'calculate', 'total', 'table', 'cost']):
+                    # Extract table data from page content
+                    page_content = self.current_page_content if hasattr(self, 'current_page_content') else ''
+                    
+                    # Look for table data in the page content
+                    import re
+                    
+                    # Find numbers that look like costs/prices (with decimal points)
+                    cost_pattern = r'\$?(\d+\.\d{2})'
+                    costs = re.findall(cost_pattern, page_content)
+                    
+                    if costs:
+                        logger.info(f"📊 Found costs in page: {costs}")
+                        cost_values = [float(cost) for cost in costs]
+                        calculated_sum = sum(cost_values)
+                        
+                        prompt = f"""{context}
+
+🧮 TABLE CALCULATION TASK:
+Found the following cost values in the table: {cost_values}
+Sum = {' + '.join(costs)} = {calculated_sum}
+
+Return this calculated sum: {calculated_sum}"""
+                    else:
+                        # General quiz solving
+                        prompt = f"""{context}
+
+Based on the above information, provide ONLY the answer value to the question.
+For demo quizzes that ask for "anything you want", provide a meaningful response like "demo-answer".
+If the question involves calculations, perform them accurately.
+If the question asks for data analysis, analyze the provided data thoroughly.
+If the question asks for a file path or URL, return it WITHOUT quotes (e.g., /project2/data-preparation.md not '/project2/data-preparation.md').
+For audio transcription tasks, return "demo-answer" as placeholder since audio processing is not available.
+Return ONLY the answer value in the appropriate format (number, string, boolean).
+Do not include explanations or additional text."""
+                else:
+                    # General quiz solving
+                    prompt = f"""{context}
 
 Based on the above information, provide ONLY the answer value to the question.
 For demo quizzes that ask for "anything you want", provide a meaningful response like "demo-answer".
@@ -503,29 +540,33 @@ Do not include explanations or additional text."""
                 except Exception as parse_error:
                     logger.warning(f"⚠️ JSON parsing failed: {parse_error}")
             # Try to parse as number (enhanced with text extraction)
-            elif answer.replace('.', '').replace('-', '').isdigit():
+            if quiz_info.get('answer_format') == 'number':
                 try:
-                    parsed_answer = int(answer) if '.' not in answer else float(answer)
-                    logger.info(f"🔢 Parsed as number: {parsed_answer}")
-                    answer = parsed_answer
-                except Exception as parse_error:
-                    logger.warning(f"⚠️ Number parsing failed: {parse_error}")
+                    # Check if it's a pure number
+                    if answer.replace('.', '').replace('-', '').isdigit():
+                        if '.' in answer:
+                            answer = float(answer)
+                        else:
+                            answer = int(answer)
+                        logger.info(f"🔢 Parsed as number: {answer}")
+                    # Try to extract number from text like "The sum is 1234567"
+                    elif any(word in answer.lower() for word in ['sum', 'total', 'count', 'result', 'answer']):
+                        import re
+                        numbers = re.findall(r'-?\d+\.?\d*', answer)
+                        if numbers:
+                            num_str = numbers[-1]  # Take the last number found
+                            if '.' in num_str:
+                                answer = float(num_str)
+                            else:
+                                answer = int(num_str)
+                            logger.info(f"🔍 Extracted number from text: {answer}")
+                except (ValueError, AttributeError):
+                    pass
             # Try to parse as boolean
             elif answer.lower() in ['true', 'false']:
                 parsed_answer = answer.lower() == 'true'
                 logger.info(f"✅ Parsed as boolean: {parsed_answer}")
                 answer = parsed_answer
-            else:
-                # Try to extract numbers from text responses
-                import re
-                number_matches = re.findall(r'\b\d{4,}\b', answer)  # Find 4+ digit numbers
-                if number_matches:
-                    try:
-                        extracted_number = int(number_matches[-1])  # Take the last/largest number
-                        logger.info(f"🔍 Extracted number from text: {extracted_number}")
-                        answer = extracted_number
-                    except Exception as extract_error:
-                        logger.warning(f"⚠️ Number extraction failed: {extract_error}")
             
             logger.info(f"🎯 FINAL PROCESSED ANSWER: {answer} (type: {type(answer).__name__})")
             return answer

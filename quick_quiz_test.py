@@ -16,7 +16,7 @@ def test_quiz_solve():
     data = {
         "email": "24ds2000137@ds.study.iitm.ac.in",
         "secret": "my-secret-123",
-        "url": "https://tds-llm-analysis.s-anand.net/project2"
+        "url": "https://tds-llm-analysis.s-anand.net/project2-reevals"
     }
     
     print(f"📍 API: {url}")
