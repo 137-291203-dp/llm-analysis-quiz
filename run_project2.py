@@ -30,15 +30,15 @@ def main():
     secret = "my-secret-123"
     
     # Initialize quiz solver
+    import time
     quiz_solver = QuizSolver(
-        llm_client=llm_client,
-        data_processor=data_processor,
         email=email,
-        secret=secret
+        secret=secret,
+        start_time=time.time()
     )
     
-    # Run on project2 URL
-    project2_url = "https://tds-llm-analysis.s-anand.net/project2"
+    # Run on project2-reevals URL (faster testing)
+    project2_url = "https://tds-llm-analysis.s-anand.net/project2-reevals"
     
     print(f"🚀 Starting LLM Analysis Quiz on: {project2_url}")
     print(f"📧 Email: {email}")

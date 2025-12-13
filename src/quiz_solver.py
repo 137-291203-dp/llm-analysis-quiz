@@ -346,7 +346,7 @@ Return the complete JSON object in this exact format:
 Replace "your-meaningful-answer-here" with an appropriate answer value."""
         else:
             # Enhanced prompting for different quiz types
-            if processed_data and processed_data.get('type') == 'csv':
+            if processed_data and isinstance(processed_data, dict) and processed_data.get('type') == 'csv':
                 # Special handling for CSV data analysis
                 cutoff_match = None
                 import re
@@ -507,6 +507,20 @@ Sum all {len(all_values)} numerical values.
 PYTHON CALCULATED THE SUM: {calculated_sum}
 
 Return this number: {calculated_sum}"""
+
+            elif processed_data and isinstance(processed_data, list):
+                # Handle JSON array data (like tweets.json)
+                prompt = f"""{context}
+
+🔍 JSON DATA ANALYSIS:
+The data is a JSON array with {len(processed_data)} items.
+
+Sample data: {processed_data[:3] if len(processed_data) > 3 else processed_data}
+
+Analyze this JSON data to answer the question. Look for the specific fields mentioned in the question.
+For counting tasks, count the items that match the specified criteria.
+Return ONLY the answer value in the appropriate format (number, string, boolean).
+Do not include explanations or additional text."""
 
             elif "secret code" in quiz_info.get('question', '').lower():
                 # Special handling for secret code extraction
