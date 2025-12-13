@@ -28,10 +28,13 @@ class QuizSolver:
         self.start_time = start_time
         self.llm_client = LLMClient()
         self.data_processor = DataProcessor()
+        # Initialize with 10 minutes timeout for 24 questions
+        self.timeout = 600  # 10 minutes for 24 questions
         
     def get_remaining_time(self):
         """Get remaining time in seconds"""
         elapsed = time.time() - self.start_time
+        return max(0, self.timeout - elapsed)
         return max(0, Config.MAX_QUIZ_TIME - elapsed)
     
     def fetch_quiz_page(self, url):
@@ -84,25 +87,25 @@ class QuizSolver:
                 
                 # Wait for JavaScript to execute and DOM to be ready
                 try:
-                    # Wait longer for JavaScript to fully execute
-                    page.wait_for_timeout(5000)  # Give more time for JS to run
+                    # Faster JavaScript execution for speed
+                    page.wait_for_timeout(2000)  # Reduced from 5000ms
                     
                     # Try to wait for specific content if it's a quiz page
                     if 'demo-scrape-data' in url:
                         # For scrape data pages, wait for content to load and try multiple approaches
                         try:
                             # Wait for any content to appear in the body
-                            page.wait_for_function("document.body.innerText.trim().length > 10", timeout=8000)
+                            page.wait_for_function("document.body.innerText.trim().length > 10", timeout=3000)
                             logger.info("🔄 Waited for dynamic content to load")
                         except:
                             # If that fails, try waiting for any visible text
-                            page.wait_for_timeout(3000)  # Additional wait
+                            page.wait_for_timeout(1000)  # Reduced additional wait
                             logger.info("🔄 Additional wait for JS execution")
                             
                         # Try executing any remaining JavaScript manually
                         try:
                             page.evaluate("window.dispatchEvent(new Event('load'))")
-                            page.wait_for_timeout(2000)  # Wait after triggering load
+                            page.wait_for_timeout(1000)  # Reduced wait after triggering load
                         except:
                             pass
                             
@@ -467,6 +470,8 @@ Based on the above information, provide ONLY the answer value to the question.
 For demo quizzes that ask for "anything you want", provide a meaningful response like "demo-answer".
 If the question involves calculations, perform them accurately.
 If the question asks for data analysis, analyze the provided data thoroughly.
+If the question asks for a file path or URL, return it WITHOUT quotes (e.g., /project2/data-preparation.md not '/project2/data-preparation.md').
+For audio transcription tasks, return "demo-answer" as placeholder since audio processing is not available.
 Return ONLY the answer value in the appropriate format (number, string, boolean).
 Do not include explanations or additional text."""
 

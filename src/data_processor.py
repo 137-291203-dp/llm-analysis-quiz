@@ -209,7 +209,8 @@ class DataProcessor:
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
                 page = browser.new_page()
-                page.set_default_timeout(30000)
+                # Set a faster timeout for speed
+                page.set_default_timeout(15000)
                 
                 response = page.goto(url, wait_until="networkidle")
                 
